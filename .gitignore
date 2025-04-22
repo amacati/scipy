@@ -323,3 +323,6 @@ scipy/optimize/_group_columns.c
 scipy/optimize/cython_optimize/_zeros.c
 scipy/optimize/cython_optimize/_zeros.pyx
 scipy/optimize/lbfgsb/_lbfgsbmodule.c
+xp_bench/results/
+xp_bench/plots/
+xp_bench/benchmark_results.pdf
