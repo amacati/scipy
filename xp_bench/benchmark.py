@@ -35,7 +35,12 @@ ROTATION_FUNCTIONS = [
     "approx_equal",
     "mean",
     "reduce",
+    "inv",
+    "align_vectors",
+    "pow",
+    "mul",
 ]
+
 FRAMEWORKS = ["numpy", "torch", "jax"]
 TIMEOUT = 60 * 5  # 5 minutes
 
@@ -643,6 +648,133 @@ def benchmark_as_davenport(
     return timing
 
 
+def benchmark_inv(
+    xp: str, device: str, n_samples: int, repeat: int, number: int
+) -> Dict[str, float]:
+    """Benchmark inv with different array types."""
+    print(f"Benchmarking inv with {xp} and {device}")
+    r, inv = None, None
+
+    def setup() -> str:
+        nonlocal r, inv
+        q, _ = create_random_data(n_samples, xp, device)
+        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        assert dev == device, f"setup device mismatch: {dev} != {device}"
+        r = R.from_quat(q)
+        if xp == "jax":
+            inv = jax.jit(R.inv)
+            jax.block_until_ready(inv(r))
+
+    def test():
+        nonlocal r
+        return r.inv()
+
+    def jax_test():
+        nonlocal r, inv
+        jax.block_until_ready(inv(r))
+
+    timing = benchmark_function(
+        setup, test if xp != "jax" else jax_test, repeat, number
+    )
+    return timing
+
+
+def benchmark_align_vectors(
+    xp: str, device: str, n_samples: int, repeat: int, number: int
+) -> Dict[str, float]:
+    """Benchmark align_vectors with different array types."""
+    print(f"Benchmarking align_vectors with {xp} and {device}")
+    v1, v2, align_vectors = None, None, None
+
+    def setup() -> str:
+        nonlocal v1, v2, align_vectors
+        # Create two sets of vectors to align
+        _, v1 = create_random_data(n_samples, xp, device)
+        _, v2 = create_random_data(n_samples, xp, device)
+        dev = "gpu" if "cuda" in str(v1.device) else "cpu"
+        assert dev == device, f"setup device mismatch: {dev} != {device}"
+        if xp == "jax":
+            align_vectors = jax.jit(R.align_vectors)
+            jax.block_until_ready(align_vectors(v1, v2))
+
+    def test():
+        nonlocal v1, v2
+        return R.align_vectors(v1, v2)
+
+    def jax_test():
+        nonlocal v1, v2, align_vectors
+        jax.block_until_ready(align_vectors(v1, v2))
+
+    timing = benchmark_function(
+        setup, test if xp != "jax" else jax_test, repeat, number
+    )
+    return timing
+
+
+def benchmark_pow(
+    xp: str, device: str, n_samples: int, repeat: int, number: int
+) -> Dict[str, float]:
+    """Benchmark pow with different array types."""
+    print(f"Benchmarking pow with {xp} and {device}")
+    r, pow_fn = None, None
+
+    def setup() -> str:
+        nonlocal r, pow_fn
+        q, _ = create_random_data(n_samples, xp, device)
+        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        assert dev == device, f"setup device mismatch: {dev} != {device}"
+        r = R.from_quat(q)
+        if xp == "jax":
+            pow_fn = jax.jit(R.__pow__)
+            jax.block_until_ready(pow_fn(r, 2.0))
+
+    def test():
+        nonlocal r
+        return r**2.0
+
+    def jax_test():
+        nonlocal r, pow_fn
+        jax.block_until_ready(pow_fn(r, 2.0))
+
+    timing = benchmark_function(
+        setup, test if xp != "jax" else jax_test, repeat, number
+    )
+    return timing
+
+
+def benchmark_mul(
+    xp: str, device: str, n_samples: int, repeat: int, number: int
+) -> Dict[str, float]:
+    """Benchmark mul with different array types."""
+    print(f"Benchmarking mul with {xp} and {device}")
+    r1, r2, mul = None, None, None
+
+    def setup() -> str:
+        nonlocal r1, r2, mul
+        q1, _ = create_random_data(n_samples, xp, device)
+        q2, _ = create_random_data(n_samples, xp, device)
+        dev = "gpu" if "cuda" in str(q1.device) else "cpu"
+        assert dev == device, f"setup device mismatch: {dev} != {device}"
+        r1 = R.from_quat(q1)
+        r2 = R.from_quat(q2)
+        if xp == "jax":
+            mul = jax.jit(R.__mul__)
+            jax.block_until_ready(mul(r1, r2))
+
+    def test():
+        nonlocal r1, r2
+        return r1 * r2
+
+    def jax_test():
+        nonlocal r1, r2, mul
+        jax.block_until_ready(mul(r1, r2))
+
+    timing = benchmark_function(
+        setup, test if xp != "jax" else jax_test, repeat, number
+    )
+    return timing
+
+
 def save_results(
     xp: str,
     device: str,
@@ -711,6 +843,14 @@ def _benchmark(
             results = benchmark_mean(xp, device, n_samples, repeat, number)
         case "reduce":
             results = benchmark_reduce(xp, device, n_samples, repeat, number)
+        case "inv":
+            results = benchmark_inv(xp, device, n_samples, repeat, number)
+        case "align_vectors":
+            results = benchmark_align_vectors(xp, device, n_samples, repeat, number)
+        case "pow":
+            results = benchmark_pow(xp, device, n_samples, repeat, number)
+        case "mul":
+            results = benchmark_mul(xp, device, n_samples, repeat, number)
         case _:
             raise ValueError(f"Invalid function: {fn}")
     # Save results for each framework/device combination
