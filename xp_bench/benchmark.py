@@ -862,29 +862,35 @@ def _benchmark(
 def run_benchmarks(
     fn: Optional[List[str]] = None,
     xp: str | None = None,
-    device: str = "cpu",
-    exp_low: int = 0,
-    exp_high: int = 7,
+    device: str | None = None,
+    low: int = 0,
+    high: int = 7,
     repeat: int = 5,
     number: int = 100,
 ):
     """Run benchmarks with specified configurations."""
-    sample_sizes = np.logspace(exp_low, exp_high, exp_high - exp_low + 1).astype(int)
+    sample_sizes = np.logspace(low, high, high - low + 1).astype(int)
     sample_sizes = np.sort(np.array(list(set(sample_sizes))))
 
     fns = [fn] if fn is not None else ROTATION_FUNCTIONS
     frameworks = [xp] if xp is not None else FRAMEWORKS
+    devices = [device] if device is not None else ["cpu", "gpu"]
+    SKIP_XP_DEVICES = [("numpy", "gpu")]
 
     for xp in frameworks:
         for fn in fns:
             for n_samples in sample_sizes:
-                print(f"Running {fn} benchmark for {n_samples} samples")
-                results = _benchmark(fn, xp, device, n_samples, repeat, number)
-                if len(results) == 0:
-                    print(
-                        f"Skipping remaining sample sizes for {fn} with {xp} on {device}"
-                    )
-                    break  # Skip to next function if timeout occurred
+                for device in devices:
+                    if (xp, device) in SKIP_XP_DEVICES:
+                        print(f"Skipping {xp} on {device}")
+                        continue
+                    print(f"Running {fn} benchmark for {n_samples} samples")
+                    results = _benchmark(fn, xp, device, n_samples, repeat, number)
+                    if len(results) == 0:
+                        print(
+                            f"Skipping remaining sample sizes for {fn} with {xp} on {device}"
+                        )
+                        break  # Skip to next function if timeout occurred
 
 
 if __name__ == "__main__":
