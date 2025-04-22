@@ -8,7 +8,7 @@ with any Array API-compatible backend.
 # https://github.com/jax-ml/jax/blob/d695aa4c63ffcebefce52794427c46bad576680c/jax/_src/scipy/spatial/transform.py.
 import re
 import warnings
-from types import EllipsisType
+from types import EllipsisType, ModuleType
 
 import numpy as np
 from scipy._lib._array_api import (
@@ -16,8 +16,7 @@ from scipy._lib._array_api import (
     Array,
     ArrayLike,
     is_lazy_array,
-    xp_promote,
-    xp_result_type,
+    is_numpy,
     xp_vector_norm,
 )
 from scipy._lib.array_api_compat import device
@@ -32,20 +31,22 @@ def from_quat(
     scalar_first: bool = False,
 ) -> Array:
     xp = array_namespace(quat)
-    _device = device(quat)
-    normalize = xp.asarray(normalize, device=_device)
-    copy = xp.asarray(copy, device=_device)
-    scalar_first = xp.asarray(scalar_first, device=_device)
-    quat = xp.where(scalar_first, xp.roll(quat, -1, axis=-1), quat)
-    quat = xp.where(normalize | copy, xp.asarray(quat, copy=True), quat)
-    quat = xp.where(normalize, _normalize_quaternion(quat), quat)
+    if scalar_first:
+        quat = xp.roll(quat, -1, axis=-1)
+    # Normalize will always copy, so we avoid the extra copy if we normalize
+    if copy and not normalize:
+        quat = xp.asarray(quat, copy=True)
+    if normalize:
+        quat = _normalize_quaternion(quat)
     return quat
 
 
 def from_matrix(matrix: Array) -> Array:
     xp = array_namespace(matrix)
-    # Promote is not guaranteed to copy, but we want to ensure we don't modify the original array.
-    matrix = xp.asarray(xp_promote(matrix, force_floating=True, xp=xp), copy=True)
+    _device = device(matrix)
+    matrix = xp.asarray(
+        matrix, dtype=fast_xp_result_type(matrix, xp=xp), device=_device, copy=True
+    )
     # Only non-lazy backends raise an error for non-positive determinants.
     mask = xp.linalg.det(matrix) <= 0
     if not is_lazy_array(mask) and xp.any(mask):
@@ -63,7 +64,8 @@ def from_matrix(matrix: Array) -> Array:
     # non-concrete boolean indexing or any form of computation without statically known shapes. We
     # either have to branch depending on lazy/non-lazy frameworks or pay the performance penalty for
     # the SVD.
-    is_orthogonal = xp.all(xpx.isclose(gramians, xp.eye(3), atol=1e-12, xp=xp))
+    eye = xp.eye(3, dtype=matrix.dtype, device=_device)
+    is_orthogonal = xp.all(xpx.isclose(gramians, eye, atol=1e-12, xp=xp))
     U, _, Vt = xp.linalg.svd(matrix)
     orthogonal_matrix = U @ Vt
     matrix = xp.where(is_orthogonal, matrix, orthogonal_matrix)
@@ -74,7 +76,7 @@ def from_matrix(matrix: Array) -> Array:
         axis=-1,
     )
     choice = xp.argmax(decision, axis=-1, keepdims=True)
-    quat = xp.empty((*matrix.shape[:-2], 4), dtype=matrix.dtype)
+    quat = xp.empty((*matrix.shape[:-2], 4), dtype=matrix.dtype, device=_device)
     # While the Array API now does support advanced indexing, we still need to know the shape of all
     # arrays statically. This is not possible if we index based on the argmax, so we compute each
     # case and assemble the final result with `xp.where`.
@@ -132,7 +134,7 @@ def from_matrix(matrix: Array) -> Array:
 
 def from_rotvec(rotvec: Array, degrees: bool = False) -> Array:
     xp = array_namespace(rotvec)
-    rotvec = xp.asarray(xp_promote(rotvec, force_floating=True, xp=xp), copy=True)
+    rotvec = xp.asarray(rotvec, dtype=fast_xp_result_type(rotvec, xp=xp), copy=True)
     # TODO: Relax the shape check once we support proper broadcasting
     if rotvec.ndim not in [1, 2] or rotvec.shape[-1] != 3:
         raise ValueError(
@@ -157,7 +159,7 @@ def from_rotvec(rotvec: Array, degrees: bool = False) -> Array:
 
 def from_mrp(mrp: Array) -> Array:
     xp = array_namespace(mrp)
-    mrp = xp.asarray(xp_promote(mrp, force_floating=True, xp=xp), copy=True)
+    mrp = xp.asarray(mrp, dtype=fast_xp_result_type(mrp), copy=True)
     if mrp.ndim not in [1, 2] or mrp.shape[len(mrp.shape) - 1] != 3:
         raise ValueError(
             f"Expected `mrp` to have shape (3,) or (N, 3), got {mrp.shape}"
@@ -188,7 +190,7 @@ def from_euler(seq: str, angles: Array, degrees: bool = False) -> Array:
     if any(seq[i] == seq[i + 1] for i in range(num_axes - 1)):
         raise ValueError(f"Expected consecutive axes to be different, got {seq}")
 
-    angles = xp.asarray(xp_promote(angles, force_floating=True, xp=xp), copy=True)
+    angles = xp.asarray(angles, dtype=fast_xp_result_type(angles, xp=xp), copy=True)
     angles, is_single = _format_angles(angles, degrees, num_axes)
     axes = [_elementary_basis_index(x) for x in seq.lower()]
     q = _elementary_quat_compose(angles, axes, intrinsic)
@@ -199,6 +201,8 @@ def from_davenport(
     axes: Array, order: str, angles: Array | float, degrees: bool = False
 ) -> Array:
     xp = array_namespace(axes)
+    _device = device(axes)
+    _dtype = fast_xp_result_type(axes, xp=xp)
     if order in ["e", "extrinsic"]:  # Must be static, cannot be jitted
         extrinsic = True
     elif order in ["i", "intrinsic"]:
@@ -208,9 +212,9 @@ def from_davenport(
             "order should be 'e'/'extrinsic' for extrinsic sequences or 'i'/"
             f"'intrinsic' for intrinsic sequences, got {order}"
         )
-    axes = xp.asarray(xp_promote(axes, force_floating=True, xp=xp), copy=True)
+    axes = xp.asarray(axes, dtype=_dtype, copy=True)
     # Angles could be a scalar, so we first need to convert it to an array before promoting
-    angles = xp_promote(xp.asarray(angles, copy=True), force_floating=True, xp=xp)
+    angles = xp.asarray(angles, dtype=_dtype, copy=True)
 
     axes = xpx.atleast_nd(axes, ndim=2, xp=xp)
     if axes.shape[-1] != 3:
@@ -223,7 +227,7 @@ def from_davenport(
     axes = axes / xp_vector_norm(axes, axis=-1, keepdims=True, xp=xp)
 
     # Check if axes are orthogonal. Checks are shape dependant and can therefore be jitted.
-    axes_not_orthogonal = xp.zeros((*axes.shape[:-1], 1), dtype=xp.bool)
+    axes_not_orthogonal = xp.zeros((*axes.shape[:-1], 1), dtype=xp.bool, device=_device)
     if num_axes > 1:
         # Cannot be True yet, so we do not need to use xp.logical_or
         axes_not_orthogonal = xpx.at(axes_not_orthogonal)[..., 0].set(
@@ -353,7 +357,6 @@ def as_euler(quat: Array, seq: str, degrees: bool = False) -> Array:
     symmetric = i == k
     k = 3 - i - j if symmetric else k
 
-    extrinsic = xp.asarray(extrinsic, device=_device)
     symmetric = xp.asarray(symmetric, device=_device)
     sign = xp.asarray(
         (i - j) * (j - k) * (k - i) // 2, dtype=quat.dtype, device=_device
@@ -374,7 +377,8 @@ def as_davenport(
     quat: Array, axes: ArrayLike, order: str, degrees: bool = False
 ) -> Array:
     xp = array_namespace(quat)
-    axes = xp_promote(axes, force_floating=True, xp=xp)
+    _dtype = fast_xp_result_type(axes, xp=xp)
+    axes = xp.asarray(axes, dtype=_dtype, copy=True)
 
     # Check argument validity
     if order in ["e", "extrinsic"]:
@@ -394,10 +398,16 @@ def as_davenport(
 
     # normalize axes
     axes = axes / xp_vector_norm(axes, axis=-1, keepdims=True, xp=xp)
-    if xp.vecdot(axes[0, ...], axes[1, ...]) >= 1e-7:
-        raise ValueError("Consecutive axes must be orthogonal.")
-    if xp.vecdot(axes[1, ...], axes[2, ...]) >= 1e-7:
-        raise ValueError("Consecutive axes must be orthogonal.")
+    vdot_ax0_ax1 = xp.vecdot(axes[0, ...], axes[1, ...])
+    vdot_ax1_ax2 = xp.vecdot(axes[1, ...], axes[2, ...])
+    if is_lazy_array(axes):
+        axes = xp.where(vdot_ax0_ax1 < 1e-7, axes, xp.nan)
+        axes = xp.where(vdot_ax1_ax2 < 1e-7, axes, xp.nan)
+    else:
+        if vdot_ax0_ax1 >= 1e-7:
+            raise ValueError("Consecutive axes must be orthogonal.")
+        if vdot_ax1_ax2 >= 1e-7:
+            raise ValueError("Consecutive axes must be orthogonal.")
 
     angles = _compute_davenport_from_quat(
         quat, axes[0, ...], axes[1, ...], axes[2, ...], extrinsic
@@ -450,17 +460,17 @@ def approx_equal(
 
 def mean(quat: Array, weights: Array | None = None) -> Array:
     xp = array_namespace(quat)
+    _device = device(quat)
+    _dtype = fast_xp_result_type(quat, xp=xp)
     if quat.shape[0] == 0:
         raise ValueError("Mean of an empty rotation set is undefined.")
 
     # Branching code is okay for checks that include meta info such as shapes and types
     if weights is None:
-        weights = xp.ones(
-            quat.shape[:-1], dtype=xp_result_type(quat, force_floating=True, xp=xp)
-        )
+        weights = xp.ones(quat.shape[:-1], dtype=_dtype, device=_device)
         weights = xpx.atleast_nd(weights, ndim=1, xp=xp)
     else:
-        weights = xp.asarray(xp_promote(weights, force_floating=True, xp=xp), copy=True)
+        weights = xp.asarray(weights, dtype=_dtype, copy=True, device=_device)
     if not is_lazy_array(weights) and xp.any(weights < 0):
         raise ValueError("`weights` must be non-negative.")
 
@@ -513,15 +523,6 @@ def reduce(
     elif left is None:
         left = xp.asarray([[0.0, 0.0, 0.0, 1.0]])
 
-    # Levi-Civita tensor for triple product computations
-    e = xp.zeros((3, 3, 3), dtype=xp_result_type(quat, force_floating=True, xp=xp))
-    e = xpx.at(e)[0, 1, 2].set(1)
-    e = xpx.at(e)[1, 2, 0].set(1)
-    e = xpx.at(e)[2, 0, 1].set(1)
-    e = xpx.at(e)[0, 2, 1].set(-1)
-    e = xpx.at(e)[2, 1, 0].set(-1)
-    e = xpx.at(e)[1, 0, 2].set(-1)
-
     # We want to calculate the real components of q = l * p * r. It can
     # be shown that:
     #     qs = ls * ps * rs - ls * dot(pv, rv) - ps * dot(lv, rv)
@@ -545,14 +546,16 @@ def reduce(
     # Fourth term: np.einsum('ix,jx,k', lv, pv, rs)
     lpv = xp.sum(lv[..., :, None, :] * pv[..., None, :, :], axis=-1)
     term4 = rs[..., None, None, :] * lpv[..., :, :, None]
-    # Fifth term: np.einsum('xyz,ix,jy,kz', e, lv, pv, rv)
-    lv_exp = lv[..., :, None, None, :, None, None]
-    pv_exp = pv[..., None, :, None, None, :, None]
-    rv_exp = rv[..., None, None, :, None, None, :]
-    e_exp = e[None, None, None, :, :, :]
-    # Multiply all terms together and sum over x,y,z axes
-    term5 = xp.sum(e_exp * lv_exp * pv_exp * rv_exp, axis=(-3, -2, -1))
-
+    # Fifth term: np.einsum('xyz,ix,jy,kz', e, lv, pv, rv). We want to avoid expanding the einsum
+    # into a 6D tensor to avoid excessive memory usage. Instead, we compute the cross product
+    # between lv and pv and then compute the dot product with rv.
+    # First compute cross products between lv and pv
+    lv_expanded = lv[..., :, None, :]
+    pv_expanded = pv[..., None, :, :]
+    cross_lp = xp.linalg.cross(lv_expanded, pv_expanded)
+    # Then compute dot product with rv
+    term5 = xp.sum(cross_lp[..., :, :, None, :] * rv[..., None, None, :, :], axis=-1)
+    # Combine all terms with proper shape alignment
     qs = xp.abs(term1 - term2 - term3 - term4 - term5)
     qs = xp.reshape(xp.moveaxis(qs, 1, 0), (qs.shape[1], -1))
 
@@ -611,8 +614,8 @@ def align_vectors(
 ) -> tuple[Array, Array, Array]:
     xp = array_namespace(a)
     # Check input vectors
-    a_original = xp_promote(a, force_floating=True, xp=xp)
-    b_original = xp_promote(b, force_floating=True, xp=xp)
+    a_original = xp.asarray(a, dtype=fast_xp_result_type(a, xp=xp), copy=True)
+    b_original = xp.asarray(b, dtype=fast_xp_result_type(b, xp=xp), copy=True)
     # TODO: This function does not support broadcasting yet.
     a = xpx.atleast_nd(a_original, ndim=2, xp=xp)
     b = xpx.atleast_nd(b_original, ndim=2, xp=xp)
@@ -725,7 +728,8 @@ def _align_vectors(a: Array, b: Array, weights: Array) -> tuple[Array, Array, Ar
     # See xpx.apply_where, issue: https://github.com/data-apis/array-api-extra/pull/141
     zeta = (s[..., 0] + s[..., 1]) * (s[..., 1] + s[..., 2]) * (s[..., 2] + s[..., 0])
     kappa = s[..., 0] * s[..., 1] + s[..., 1] * s[..., 2] + s[..., 2] * s[..., 0]
-    sensitivity = xp.mean(weights) / zeta * (kappa * xp.eye(3) + B @ B.mT)
+    eye = xp.eye(3, dtype=a.dtype, device=device(a))
+    sensitivity = xp.mean(weights) / zeta * (kappa * eye + B @ B.mT)
     q_opt = from_matrix(C)
     return q_opt, rssd, sensitivity
 
@@ -893,9 +897,12 @@ def pow(quat: Array, n: float) -> Array:
 def _normalize_quaternion(quat: Array) -> Array:
     xp = array_namespace(quat)
     quat_norm = xp_vector_norm(quat, axis=-1, keepdims=True, xp=xp)
-    if not is_lazy_array(quat_norm) and xp.any(quat_norm == 0):
-        raise ValueError("Found zero norm quaternions in `quat`.")
-    quat = xp.where(quat_norm == 0, xp.nan, quat)
+    zero_norm = quat_norm == 0
+    if not is_lazy_array(quat_norm):
+        if xp.any(zero_norm):
+            raise ValueError("Found zero norm quaternions in `quat`.")
+    else:
+        quat = xp.where(zero_norm, xp.nan, quat)
     return quat / quat_norm
 
 
@@ -982,7 +989,8 @@ def _compute_davenport_from_quat(
     # Adapt the algorithm for our case by reversing both axis sequence and
     # angles for intrinsic rotations when needed
     xp = array_namespace(quat)
-    mask = xp.asarray(extrinsic, device=device(quat))
+    _device = device(quat)
+    mask = xp.asarray(extrinsic, device=_device)
     _n1 = xp.where(mask, n1, n3)
     _n3 = xp.where(mask, n3, n1)
     n1, n3 = _n1, _n3
@@ -991,13 +999,13 @@ def _compute_davenport_from_quat(
     lamb = xp.atan2(xp.vecdot(n3, n_cross), xp.vecdot(n3, n1))
 
     # alternative set of angles compatible with as_euler implementation
-    mask = xp.asarray(lamb < 0, device=device(quat))
+    mask = xp.asarray(lamb < 0, device=_device)
     n2 = xp.where(mask, -n2, n2)
     lamb = xp.where(mask, -lamb, lamb)
     n_cross = xp.where(mask, -n_cross, n_cross)
-    correct_set = xp.where(mask, xp.asarray(True), xp.asarray(False))
+    correct_set = mask
 
-    quat_lamb = xp.asarray([*(xp.sin(lamb / 2) * n2), xp.cos(lamb / 2)])
+    quat_lamb = xp.asarray([*(xp.sin(lamb / 2) * n2), xp.cos(lamb / 2)], device=_device)
 
     q_trans = compose_quat(quat_lamb, quat)
     a = q_trans[..., 3]
@@ -1015,20 +1023,21 @@ def _compute_davenport_from_quat(
 
 def _elementary_quat_compose(angles: Array, axes: list[int], intrinsic: bool) -> Array:
     xp = array_namespace(angles)
-    intrinsic = xp.asarray(intrinsic, device=device(angles))
-    quat = _make_elementary_quat(axes[0], angles[..., 0])
+    _device = device(angles)
+    intrinsic = xp.asarray(intrinsic, device=_device)
+    quat = _make_elementary_quat(axes[0], angles[..., 0], device=_device)
     for i in range(1, len(axes)):
-        ax_quat = _make_elementary_quat(axes[i], angles[..., i])
+        ax_quat = _make_elementary_quat(axes[i], angles[..., i], device=_device)
         quat = xp.where(
             intrinsic, compose_quat(quat, ax_quat), compose_quat(ax_quat, quat)
         )
     return quat
 
 
-def _make_elementary_quat(axis: int, angle: Array) -> Array:
+def _make_elementary_quat(axis: int, angle: Array, device) -> Array:
     xp = array_namespace(angle)
     quat = xp.zeros(
-        (*angle.shape, 4), dtype=xp_result_type(angle, force_floating=True, xp=xp)
+        (*angle.shape, 4), dtype=fast_xp_result_type(angle, xp=xp), device=device
     )
     quat = xpx.at(quat)[..., 3].set(xp.cos(angle / 2.0))
     quat = xpx.at(quat)[..., axis].set(xp.sin(angle / 2.0))
@@ -1046,11 +1055,11 @@ def _get_angles(
     d: Array,
 ) -> Array:
     xp = array_namespace(a)
+    _device = device(a)
     eps = 1e-7
     half_sum = xp.atan2(b, a)
     half_diff = xp.atan2(d, c)
-    angles = xp.zeros((*a.shape, 3), dtype=a.dtype)
-    _device = device(a)
+    angles = xp.zeros((*a.shape, 3), dtype=a.dtype, device=_device)
 
     angles = xpx.at(angles)[..., 1].set(2 * xp.atan2(xp.hypot(c, d), xp.hypot(a, b)))
 
@@ -1116,6 +1125,33 @@ def broadcastable(shape_a: tuple[int, ...], shape_b: tuple[int, ...]) -> bool:
     return all(
         (m == n) or (m == 1) or (n == 1) for m, n in zip(shape_a[::-1], shape_b[::-1])
     )
+
+
+def fast_xp_result_type(a: ArrayLike, xp: ModuleType | None = None):
+    """Fast version of xp_result_type.
+
+    xp.result_type is significantly faster than xp_result_type (1e5x faster). For large arrays, this
+    dominates performance. Therefore, we use xp.result_type. This lacks the option to force floating
+    point types, so we catch promotion errors from integer types and use the result type of float32
+    and float64 in this case.
+
+    For NumPy, we always promote to float64.
+
+    Todo:
+        Do we always want to promote to float64 for NumPy? This is consistent with the old
+        implementation, but it might make more sense to preserve float32 if passed in by the user.
+        This would make the behavior more consistent with the Array API backend, but requires
+        changes in the cython backend.
+    """
+    if xp is None:
+        xp = array_namespace(a)
+    if is_numpy(xp):
+        return xp.float64
+    else:
+        try:
+            return xp.result_type(a.dtype, xp.float64)
+        except TypeError:
+            return xp.result_type(xp.float32, xp.float64)
 
 
 def _split_rotation(q, xp):
