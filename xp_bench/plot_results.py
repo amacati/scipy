@@ -86,7 +86,6 @@ def plot_results(results_dir: Path | str = "results", save_path: str = ""):
         ax = plt.gca()
         ax.set_xscale("log")
         ax.set_yscale("log")
-        plt.show()
 
         if save_path:
             save_dir = Path(save_path)

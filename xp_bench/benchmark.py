@@ -502,15 +502,15 @@ def benchmark_from_davenport(
         # Create two sets of vectors for Davenport's q-method
         if xp == "jax":
             from_davenport = jax.jit(partial(R.from_davenport, order="e"))
-            jax.block_until_ready(from_davenport(p[0, :], angles=p[0, :]))
+            jax.block_until_ready(from_davenport(p[0, :], angles=p[:, 0]))
 
     def test():
         nonlocal p
-        return R.from_davenport(p[0, :], "e", p[0, :])
+        return R.from_davenport(p[0, :], "e", p[:, 0])
 
     def jax_test():
         nonlocal p, from_davenport
-        jax.block_until_ready(from_davenport(p[0, :], angles=p[0, :]))
+        jax.block_until_ready(from_davenport(p[0, :], angles=p[:, 0]))
 
     timing = benchmark_function(
         setup, test if xp != "jax" else jax_test, repeat, number
