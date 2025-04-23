@@ -11,6 +11,7 @@ import timeit
 import torch
 import jax
 import jax.numpy as jp
+import cupy
 from functools import partial
 from numpy.typing import NDArray
 
@@ -34,14 +35,14 @@ ROTATION_FUNCTIONS = [
     "magnitude",
     "approx_equal",
     "mean",
-    "reduce",
     "inv",
     "align_vectors",
     "pow",
     "mul",
+    "reduce",
 ]
 
-FRAMEWORKS = ["numpy", "torch", "jax"]
+FRAMEWORKS = ["numpy", "torch", "jax", "cupy"]
 TIMEOUT = 60 * 5  # 5 minutes
 
 
@@ -58,6 +59,8 @@ def create_random_data(
         )
     elif xp_str == "jax":
         return jax_qp(n_samples, device)
+    elif xp_str == "cupy":
+        return cupy.random.randn(n_samples, 4), cupy.random.rand(n_samples, 3)
     raise ValueError(f"Invalid xp_str: {xp_str}")
 
 
@@ -78,6 +81,10 @@ def to_xp_array(xp: str, array: NDArray, device: str = "cpu") -> NDArray:
     elif xp == "jax":
         dev = jax.devices(device)[0]
         return jax.numpy.asarray(array, device=dev)
+    elif xp == "cupy":
+        assert device == "gpu", "cupy only supports gpu"
+        return cupy.asarray(array)
+    raise ValueError(f"Invalid xp_str: {xp}")
 
 
 def benchmark_function(
@@ -114,7 +121,7 @@ def benchmark_from_quat(
     def setup() -> str:
         nonlocal q, p, r, from_quat
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         if xp == "jax":
             from_quat = jax.jit(R.from_quat)
@@ -145,7 +152,7 @@ def benchmark_as_quat(
     def setup() -> str:
         nonlocal q, p, r, as_quat
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -176,7 +183,7 @@ def benchmark_as_matrix(
     def setup() -> str:
         nonlocal q, p, r, as_matrix
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -209,7 +216,7 @@ def benchmark_apply(
     def setup() -> str:
         nonlocal q, p, r, apply
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -241,7 +248,7 @@ def benchmark_from_matrix(
     def setup() -> str:
         nonlocal matrices, p, r, from_matrix
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         matrices = r.as_matrix()
@@ -274,7 +281,7 @@ def benchmark_from_rotvec(
     def setup() -> str:
         nonlocal rotvecs, p, r, from_rotvec
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         rotvecs = r.as_rotvec()
@@ -307,7 +314,7 @@ def benchmark_from_mrp(
     def setup() -> str:
         nonlocal mrps, p, r, from_mrp
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         mrps = r.as_mrp()
@@ -340,7 +347,7 @@ def benchmark_from_euler(
     def setup() -> str:
         nonlocal angles, p, r, from_euler
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         angles = r.as_euler("xyz")
@@ -373,7 +380,7 @@ def benchmark_magnitude(
     def setup() -> str:
         nonlocal q, p, r, magnitude
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -404,7 +411,7 @@ def benchmark_approx_equal(
     def setup() -> str:
         nonlocal q, p, r1, r2, approx_equal
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r1 = R.from_quat(q)
         r2 = R.from_quat(q)  # Same rotation for testing
@@ -436,7 +443,7 @@ def benchmark_mean(
     def setup() -> str:
         nonlocal q, p, r, mean
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -467,7 +474,7 @@ def benchmark_reduce(
     def setup() -> str:
         nonlocal r, left, right, reduce
         q, _ = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         q, _ = create_random_data(n_samples, xp, device)
@@ -502,7 +509,7 @@ def benchmark_from_davenport(
     def setup() -> str:
         nonlocal p, from_davenport
         p = create_random_data(n_samples, xp, device)[1]
-        dev = "gpu" if "cuda" in str(p.device) else "cpu"
+        dev = "gpu" if "cuda" in str(p.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         # Create two sets of vectors for Davenport's q-method
         if xp == "jax":
@@ -533,7 +540,7 @@ def benchmark_as_rotvec(
     def setup() -> str:
         nonlocal q, p, r, as_rotvec
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -564,7 +571,7 @@ def benchmark_as_mrp(
     def setup() -> str:
         nonlocal q, p, r, as_mrp
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -595,7 +602,7 @@ def benchmark_as_euler(
     def setup() -> str:
         nonlocal q, p, r, as_euler
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -626,7 +633,7 @@ def benchmark_as_davenport(
     def setup() -> str:
         nonlocal axes, r, as_davenport
         q, p = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         axes = to_xp_array(xp, np.eye(3), device)
@@ -658,7 +665,7 @@ def benchmark_inv(
     def setup() -> str:
         nonlocal r, inv
         q, _ = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -691,7 +698,7 @@ def benchmark_align_vectors(
         # Create two sets of vectors to align
         _, v1 = create_random_data(n_samples, xp, device)
         _, v2 = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(v1.device) else "cpu"
+        dev = "gpu" if "cuda" in str(v1.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         if xp == "jax":
             align_vectors = jax.jit(R.align_vectors)
@@ -721,7 +728,7 @@ def benchmark_pow(
     def setup() -> str:
         nonlocal r, pow_fn
         q, _ = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r = R.from_quat(q)
         if xp == "jax":
@@ -753,7 +760,7 @@ def benchmark_mul(
         nonlocal r1, r2, mul
         q1, _ = create_random_data(n_samples, xp, device)
         q2, _ = create_random_data(n_samples, xp, device)
-        dev = "gpu" if "cuda" in str(q1.device) else "cpu"
+        dev = "gpu" if "cuda" in str(q1.device).lower() else "cpu"
         assert dev == device, f"setup device mismatch: {dev} != {device}"
         r1 = R.from_quat(q1)
         r2 = R.from_quat(q2)
@@ -875,7 +882,7 @@ def run_benchmarks(
     fns = [fn] if fn is not None else ROTATION_FUNCTIONS
     frameworks = [xp] if xp is not None else FRAMEWORKS
     devices = [device] if device is not None else ["cpu", "gpu"]
-    SKIP_XP_DEVICES = [("numpy", "gpu")]
+    SKIP_XP_DEVICES = [("numpy", "gpu"), ("cupy", "cpu")]
 
     for xp in frameworks:
         for fn in fns:
@@ -885,7 +892,14 @@ def run_benchmarks(
                     continue
                 for n_samples in sample_sizes:
                     print(f"Running {fn} benchmark for {n_samples} samples")
-                    results = _benchmark(fn, xp, device, n_samples, repeat, number)
+                    try:
+                        results = _benchmark(fn, xp, device, n_samples, repeat, number)
+                    except AttributeError as e:  # Cupy lacks support of mT
+                        if str(e).startswith("'ndarray' object has no attribute 'mT'"):
+                            print(
+                                f"Skipping {fn} with {xp} on {device} - mT not supported"
+                            )
+                            break
                     if len(results) == 0:
                         print(
                             f"Skipping remaining sample sizes for {fn} with {xp} on {device}"

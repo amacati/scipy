@@ -3,7 +3,6 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import fire
-from typing import Optional
 
 
 def load_results(results_dir: Path | str = "results"):
@@ -41,11 +40,13 @@ def plot_results(results_dir: Path | str = "results", save_path: str = ""):
 
     # Define colors for each XP type and device combination
     colors = {
-        "numpy|cpu": "#1f77b4",  # blue
-        "torch|cpu": "#ff7f0e",  # orange
-        "torch|gpu": "#d62728",  # red
-        "jax|cpu": "#2ca02c",  # green
-        "jax|gpu": "#9467bd",  # purple
+        "numpy scipy 1.15.2": "#2B80D4",
+        "numpy cpu": "#0D3E6E",
+        "torch cpu": "#e67446",
+        "torch gpu": "#eb5036",
+        "jax cpu": "#469E49",
+        "jax gpu": "#2F6B32",
+        "cupy gpu": "#9B28AF",
     }
 
     for fn_name, fn_results in all_results.items():
@@ -56,24 +57,28 @@ def plot_results(results_dir: Path | str = "results", save_path: str = ""):
         merged_results = {}
         for xp, xp_data in fn_results.items():
             for device, device_data in xp_data.items():
-                merged_key = f"{xp}|{device}"
+                merged_key = f"{xp} {device}"
                 merged_results[merged_key] = device_data
 
         for xp_device, timings in merged_results.items():
             means = []
             std_devs = []
-            for n_samples, timing in sorted(timings.items()):
+            for _, timing in sorted(timings.items()):
                 means.append(np.mean(timing))
                 std_devs.append(np.std(timing))
             sample_sizes = sorted(timings.keys())
             sample_sizes = [int(s) for s in sample_sizes]
+            color = colors.get(xp_device)
+
+            if xp_device == "numpy cpu":  # Replace with more accurate label
+                xp_device = "numpy scipy ENH #22777"
 
             plt.errorbar(
                 sample_sizes,
                 means,
                 yerr=std_devs,
                 label=xp_device,
-                color=colors.get(xp_device),
+                color=color,
                 marker="o",
                 capsize=5,
             )
