@@ -879,11 +879,11 @@ def run_benchmarks(
 
     for xp in frameworks:
         for fn in fns:
-            for n_samples in sample_sizes:
-                for device in devices:
-                    if (xp, device) in SKIP_XP_DEVICES:
-                        print(f"Skipping {xp} on {device}")
-                        continue
+            for device in devices:
+                if (xp, device) in SKIP_XP_DEVICES:
+                    print(f"Skipping {xp} on {device}")
+                    continue
+                for n_samples in sample_sizes:
                     print(f"Running {fn} benchmark for {n_samples} samples")
                     results = _benchmark(fn, xp, device, n_samples, repeat, number)
                     if len(results) == 0:

@@ -1,6 +1,9 @@
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPDF
+from reportlab.pdfgen import canvas
 
 
 def combine_plots_to_pdf(
@@ -10,36 +13,48 @@ def combine_plots_to_pdf(
     plots_dir = Path(__file__).parent / plots_dir
     output_path = Path(__file__).parent / output_name
 
-    # Get all PNG files
-    plot_files = sorted(plots_dir.glob("*.png"))
+    # Get all SVG files
+    plot_files = sorted(plots_dir.glob("*.svg"))
 
     if not plot_files:
         print("No plot files found in the specified directory.")
         return
 
-    with PdfPages(output_path) as pdf:
-        # Add a title page
-        plt.figure(figsize=(11.69, 8.27))  # A4 size
-        plt.axis("off")
-        plt.text(
-            0.5,
-            0.5,
-            "scipy.spatial.transform benchmark",
-            horizontalalignment="center",
-            verticalalignment="center",
-            fontsize=20,
-        )
-        pdf.savefig()
-        plt.close()
+    # Create a PDF document
+    page_width = 11.69 * 72  # A4 width in points
+    page_height = 8.27 * 72  # A4 height in points
+    c = canvas.Canvas(str(output_path))
+    c.setPageSize((page_width, page_height))
 
-        # Add each plot to the PDF
-        for plot_file in plot_files:
-            fig = plt.figure(figsize=(11.69, 8.27))  # A4 size
-            img = plt.imread(plot_file)
-            plt.imshow(img)
-            plt.axis("off")
-            pdf.savefig(fig, bbox_inches="tight")
-            plt.close()
+    # Add a title page
+    c.setFont("Helvetica", 20)
+    c.drawCentredString(
+        page_width / 2, page_height / 2, "scipy.spatial.transform benchmark"
+    )
+    c.showPage()
+
+    # Add each plot to the PDF
+    for plot_file in plot_files:
+        drawing = svg2rlg(str(plot_file))
+        if drawing:
+            # Scale to fit page with margins
+            margin = 36  # 0.5 inch margin
+            scale = min(
+                (page_width - 2 * margin) / drawing.width,
+                (page_height - 2 * margin) / drawing.height,
+            )
+            drawing.scale(scale, scale)
+
+            # Center on page
+            x = (page_width - drawing.width * scale) / 2
+            y = (page_height - drawing.height * scale) / 2
+
+            renderPDF.draw(drawing, c, x, y)
+            c.showPage()
+        else:
+            print(f"Failed to process {plot_file}")
+
+    c.save()
 
 
 if __name__ == "__main__":

@@ -91,7 +91,8 @@ def plot_results(results_dir: Path | str = "results", save_path: str = ""):
             save_dir = Path(save_path)
             save_dir.mkdir(parents=True, exist_ok=True)
             # Save each figure with the function name
-            plt.savefig(save_dir / f"{fn_name}.png")
+            plt.savefig(save_dir / f"{fn_name}.png", format="png")
+            plt.savefig(save_dir / f"{fn_name}.svg", format="svg")
             plt.close()
         else:
             plt.close()
