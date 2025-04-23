@@ -1,6 +1,4 @@
 from pathlib import Path
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF
 from reportlab.pdfgen import canvas
