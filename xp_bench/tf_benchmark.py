@@ -8,21 +8,21 @@ from array_api_compat import array_namespace
 import fire
 
 TRANSFORM_FUNCTIONS = [
-    "from_rotation",
-    "from_components",
-    "as_matrix",
-    "as_components",
-    "mul",
-    "pow",
     "from_matrix",
+    "from_rotation",
     "from_translation",
-    "apply",
-    "inv",
+    "from_components",
     "from_exp_coords",
     "from_dual_quat",
+    "as_matrix",
+    "as_components",
     "as_exp_coords",
     "as_dual_quat",
+    "apply",
     "concatenate",
+    "inv",
+    "mul",
+    "pow",
 ]
 
 
