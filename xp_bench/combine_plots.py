@@ -1,4 +1,5 @@
 from pathlib import Path
+import fire
 from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF
 from reportlab.pdfgen import canvas
@@ -57,8 +58,16 @@ def combine_plots_to_pdf(
     c.save()
 
 
+def main(rotations: bool = True, transforms: bool = True):
+    if rotations:
+        combine_plots_to_pdf()
+    if transforms:
+        combine_plots_to_pdf(
+            plots_dir="tf_plots",
+            output_name="tf_benchmark.pdf",
+            cls_name="RigidTransform",
+        )
+
+
 if __name__ == "__main__":
-    combine_plots_to_pdf()
-    combine_plots_to_pdf(
-        plots_dir="tf_plots", output_name="tf_benchmark.pdf", cls_name="RigidTransform"
-    )
+    fire.Fire(main)
