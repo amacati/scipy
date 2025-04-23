@@ -801,7 +801,7 @@ def save_results(
 
     n_samples = int(n_samples)
     assert isinstance(n_samples, int)
-    existing_results[n_samples] = results
+    existing_results[str(n_samples)] = results
     with open(result_file, "w") as f:
         json.dump(existing_results, f, indent=2)
 

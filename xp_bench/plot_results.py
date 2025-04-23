@@ -105,9 +105,11 @@ def plot_results(
             plt.close()
 
 
-def main():
-    plot_results()
-    plot_results(results_dir="tf_results", save_path="tf_plots")
+def main(rot: bool = True, tf: bool = True):
+    if rot:
+        plot_results()
+    if tf:
+        plot_results(results_dir="tf_results", save_path="tf_plots")
 
 
 if __name__ == "__main__":

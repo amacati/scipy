@@ -572,7 +572,7 @@ def _benchmark_transform(
 
         n_samples = int(n_samples)
         assert isinstance(n_samples, int)
-        existing_results[n_samples] = results.tolist()
+        existing_results[str(n_samples)] = results.tolist()
 
         with open(result_file, "w") as f:
             json.dump(existing_results, f, indent=2)
