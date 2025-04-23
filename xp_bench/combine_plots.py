@@ -5,7 +5,9 @@ from reportlab.pdfgen import canvas
 
 
 def combine_plots_to_pdf(
-    plots_dir: str = "plots", output_name: str = "rotation_benchmark.pdf"
+    plots_dir: str = "rotation_plots",
+    output_name: str = "rotation_benchmark.pdf",
+    cls_name="Rotation",
 ):
     """Combine all PNG plots into a single PDF file."""
     plots_dir = Path(__file__).parent / plots_dir
@@ -27,7 +29,7 @@ def combine_plots_to_pdf(
     # Add a title page
     c.setFont("Helvetica", 20)
     c.drawCentredString(
-        page_width / 2, page_height / 2, "scipy.spatial.transform.Rotation benchmark"
+        page_width / 2, page_height / 2, f"scipy.spatial.transform.{cls_name} benchmark"
     )
     c.showPage()
 
@@ -57,3 +59,6 @@ def combine_plots_to_pdf(
 
 if __name__ == "__main__":
     combine_plots_to_pdf()
+    combine_plots_to_pdf(
+        plots_dir="tf_plots", output_name="tf_benchmark.pdf", cls_name="RigidTransform"
+    )

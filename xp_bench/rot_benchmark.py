@@ -790,7 +790,7 @@ def save_results(
     n_samples: int,
 ):
     """Save benchmark results to JSON file."""
-    save_dir = Path(__file__).parent / "results" / xp / device
+    save_dir = Path(__file__).parent / "rotation_results" / xp / device
     save_dir.mkdir(parents=True, exist_ok=True)
 
     result_file = save_dir / f"{func}.json"

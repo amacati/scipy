@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import fire
 
 
-def load_results(results_dir: Path | str = "results"):
+def load_results(results_dir: Path | str = "rotation_results"):
     """Load all benchmark results from JSON files."""
     results_dir = Path(results_dir)
     all_results = {}
@@ -33,10 +33,12 @@ def load_results(results_dir: Path | str = "results"):
     return all_results
 
 
-def plot_results(results_dir: Path | str = "results", save_path: str = ""):
+def plot_results(
+    results_dir: Path | str = "rotation_results", save_path: str = "rotation_plots"
+):
     """Plot benchmark results, creating a separate figure for each function."""
     all_results = load_results(Path(__file__).parent / results_dir)
-    save_path = Path(__file__).parent / "plots" / save_path
+    save_path = Path(__file__).parent / save_path
 
     # Define colors for each XP type and device combination
     colors = {
@@ -103,5 +105,10 @@ def plot_results(results_dir: Path | str = "results", save_path: str = ""):
             plt.close()
 
 
+def main():
+    plot_results()
+    plot_results(results_dir="tf_results", save_path="tf_plots")
+
+
 if __name__ == "__main__":
-    fire.Fire(plot_results)
+    fire.Fire(main)
