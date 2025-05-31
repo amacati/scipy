@@ -42,15 +42,16 @@ def plot_results(
 
     # Define colors for each XP type and device combination
     colors = {
-        "numpy scipy main": "#8dbff2",
-        "numpy XP enabled": "#082644",
-        "numpy XP disabled": "#1873cd",
+        "scipy main": "#8dbff2",
+        "XP enabled": "#082644",
+        "XP disabled": "#1873cd",
         "torch cpu": "#e67446",
         "torch gpu": "#eb5036",
         "jax cpu": "#469E49",
         "jax gpu": "#2F6B32",
         "cupy gpu": "#9B28AF",
-        "numpy optimized XP disabled": "#FF0000",
+        "optimized XP disabled": "#e30202",
+        "optimized XP enabled": "#4a0101",
     }
 
     for fn_name, fn_results in all_results.items():
@@ -74,13 +75,15 @@ def plot_results(
             sample_sizes = [int(s) for s in sample_sizes]
 
             if xp_device == "numpy_scipy cpu":  # Replace with more accurate label
-                xp_device = "numpy scipy main"  # "numpy scipy ENH #22777"
+                xp_device = "scipy main"  # "scipy ENH #22777"
             if xp_device == "numpy_xp cpu":
-                xp_device = "numpy XP enabled"
+                xp_device = "XP enabled"
             if xp_device == "numpy_no_xp cpu":
-                xp_device = "numpy XP disabled"
-            if xp_device == "numpy_optim cpu":
-                xp_device = "numpy optimized XP disabled"
+                xp_device = "XP disabled"
+            if xp_device == "numpy_opt_no_xp cpu":
+                xp_device = "optimized XP disabled"
+            if xp_device == "numpy_opt_xp cpu":
+                xp_device = "optimized XP enabled"
             color = colors.get(xp_device)
 
             plt.errorbar(
