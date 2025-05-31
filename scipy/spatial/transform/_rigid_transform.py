@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from types import EllipsisType
-
+from typing import Callable
 import numpy as np
 
 from scipy._lib._array_api import (
@@ -1692,3 +1692,16 @@ class RigidTransform:
         # bump indent (+27 characters)
         m[1:] = [" " * 27 + m[i] for i in range(1, len(m))]
         return "RigidTransform.from_matrix(" + "\n".join(m) + ")"
+
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """Reduce the RigidTransform for pickling.
+        
+        We store modules inside RigidTransforms which cannot be pickled. To circumvent
+        this, we pickle only the matrix and restore the cached modules from the matrix
+        type in `from_matrix`.
+        """
+        matrix = self._matrix
+        if self._single:
+            matrix = matrix[0, ...]
+        return (self.__class__.from_matrix, (matrix,))
