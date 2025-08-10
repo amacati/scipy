@@ -1,4 +1,7 @@
 import os
+
+os.environ["SCIPY_ARRAY_API"] = "1"
+
 from pathlib import Path
 import json
 from typing import Callable, Dict, List, Optional
@@ -12,7 +15,6 @@ import cupy
 from functools import partial
 from numpy.typing import NDArray
 
-os.environ["SCIPY_ARRAY_API"] = "1"
 from scipy.spatial.transform import Rotation as R
 
 
@@ -898,6 +900,14 @@ def run_benchmarks(
                                 f"Skipping {fn} with {xp} on {device} - mT not supported"
                             )
                             break
+                        if str(e).startswith(
+                            "type object 'Rotation' has no attribute "
+                        ):
+                            print(
+                                f"Skipping {fn} with {xp} on {device} - Rotation not found"
+                            )
+                            break
+                        raise e
                     if len(results) == 0:
                         print(
                             f"Skipping remaining sample sizes for {fn} with {xp} on {device}"

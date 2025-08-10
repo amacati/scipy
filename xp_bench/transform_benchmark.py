@@ -1,11 +1,16 @@
 import json
 import numpy as np
 import os
-# os.environ["SCIPY_ARRAY_API"] = "1"
+
+os.environ["SCIPY_ARRAY_API"] = "1"
 import jax
 from pathlib import Path
 from scipy.spatial.transform import Rotation as R, RigidTransform
-from rot_benchmark import benchmark_function, create_random_data, FRAMEWORKS
+from rotation_benchmark import (
+    benchmark_function,
+    create_random_data,
+    FRAMEWORKS,
+)
 from array_api_compat import array_namespace
 import fire
 

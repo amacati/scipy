@@ -42,16 +42,12 @@ def plot_results(
 
     # Define colors for each XP type and device combination
     colors = {
-        "scipy main": "#8dbff2",
-        "XP enabled": "#082644",
-        "XP disabled": "#1873cd",
         "torch cpu": "#e67446",
         "torch gpu": "#eb5036",
         "jax cpu": "#469E49",
         "jax gpu": "#2F6B32",
         "cupy gpu": "#9B28AF",
-        "optimized XP disabled": "#e30202",
-        "optimized XP enabled": "#4a0101",
+        "numpy cpu": "#1152a3",
     }
 
     for fn_name, fn_results in all_results.items():
@@ -74,24 +70,20 @@ def plot_results(
             sample_sizes = sorted(timings.keys())
             sample_sizes = [int(s) for s in sample_sizes]
 
-            if xp_device == "numpy_scipy cpu":  # Replace with more accurate label
-                xp_device = "scipy main"  # "scipy ENH #22777"
-            if xp_device == "numpy_xp cpu":
-                xp_device = "XP enabled"
-            if xp_device == "numpy_no_xp cpu":
-                xp_device = "XP disabled"
-            if xp_device == "numpy_opt_no_xp cpu":
-                xp_device = "optimized XP disabled"
-            if xp_device == "numpy_opt_xp cpu":
-                xp_device = "optimized XP enabled"
             color = colors.get(xp_device)
 
+            if "jax_native" in xp_device:
+                linestyle = "--"
+                color = colors.get(xp_device.replace("jax_native", "jax"))
+            else:
+                linestyle = "-"
             plt.errorbar(
                 sample_sizes,
                 means,
                 yerr=std_devs,
                 label=xp_device,
                 color=color,
+                linestyle=linestyle,
                 marker="o",
                 capsize=5,
             )
