@@ -42,17 +42,21 @@ def plot_results(
 
     # Define colors for each XP type and device combination
     colors = {
-        "torch cpu": "#e67446",
-        "torch gpu": "#eb5036",
-        "jax cpu": "#469E49",
-        "jax gpu": "#2F6B32",
+        "torch cpu": "#ff6e34",
+        "torch gpu": "#a41900",
+        "jax cpu": "#51B854",
+        "jax gpu": "#065A09",
         "cupy gpu": "#9B28AF",
-        "numpy cpu": "#1152a3",
+        "numpy cpu": "#052b59",
     }
 
     for fn_name, fn_results in all_results.items():
         # Create a new figure for each function
-        plt.figure(figsize=(10, 8))
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        axes = axes.flatten()
+
+        # Define framework order for subplots
+        frameworks = ["numpy", "torch", "jax", "cupy"]
 
         # Merge xp and device keys
         merged_results = {}
@@ -61,41 +65,61 @@ def plot_results(
                 merged_key = f"{xp} {device}"
                 merged_results[merged_key] = device_data
 
-        for xp_device, timings in merged_results.items():
-            means = []
-            std_devs = []
-            for _, timing in sorted(timings.items()):
-                means.append(np.mean(timing))
-                std_devs.append(np.std(timing))
-            sample_sizes = sorted(timings.keys())
-            sample_sizes = [int(s) for s in sample_sizes]
+        for i, focus_framework in enumerate(frameworks):
+            ax = axes[i]
 
-            color = colors.get(xp_device)
+            for xp_device, timings in merged_results.items():
+                means = []
+                std_devs = []
+                for _, timing in sorted(timings.items()):
+                    means.append(np.mean(timing))
+                    std_devs.append(np.std(timing))
+                sample_sizes = [int(s) for s in sorted(timings.keys())]
 
-            if "jax_native" in xp_device:
-                linestyle = "--"
-                color = colors.get(xp_device.replace("jax_native", "jax"))
-            else:
-                linestyle = "-"
-            plt.errorbar(
-                sample_sizes,
-                means,
-                yerr=std_devs,
-                label=xp_device,
-                color=color,
-                linestyle=linestyle,
-                marker="o",
-                capsize=5,
-            )
+                # Determine if this is the focus framework
+                is_focus = focus_framework in xp_device
 
-        plt.title(fn_name)
-        plt.xlabel("Number of samples")
-        plt.ylabel("Time (seconds)")
-        plt.grid(True)
-        plt.legend()
-        ax = plt.gca()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
+                if is_focus:
+                    color = colors.get(xp_device)
+                    alpha = 1.0
+                else:
+                    color = "gray"
+                    alpha = 0.3
+
+                if "jax_native" in xp_device:
+                    if focus_framework != "jax":
+                        continue
+                    linestyle = "--"
+                    color = colors.get(xp_device.replace("jax_native", "jax"))
+                else:
+                    linestyle = "-"
+
+                ax.errorbar(
+                    sample_sizes,
+                    means,
+                    yerr=std_devs,
+                    label=xp_device if is_focus else None,
+                    color=color,
+                    alpha=alpha,
+                    linestyle=linestyle,
+                    marker="o",
+                    capsize=5,
+                )
+
+                ax.set_title(f"{fn_name} - {focus_framework.capitalize()}")
+                ax.set_xlabel("Number of samples")
+                ax.set_ylabel("Time (seconds)")
+                ax.grid(True)
+                ax.set_xscale("log")
+                ax.set_yscale("log")
+                if any(focus_framework in key for key in merged_results.keys()):
+                    ax.legend()
+
+        if "rotation" in results_dir:
+            fig.suptitle(f"Rotation.{fn_name}")
+        else:
+            fig.suptitle(f"RigidTransform.{fn_name}")
+        plt.tight_layout()
 
         if save_path:
             save_dir = Path(save_path)

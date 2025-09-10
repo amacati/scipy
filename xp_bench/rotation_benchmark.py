@@ -16,6 +16,30 @@ from functools import partial
 from numpy.typing import NDArray
 
 from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform._rotation import backend_registry, xp_backend
+
+from jax.tree_util import register_pytree_node
+from scipy._lib._array_api import array_namespace
+
+
+def rot_unflatten(_, c):
+    # Optimization: We do not want to call __init__ here because it would perform normalizations
+    # twice. More importantly, it would call the non-jitted Array API backend and therefore
+    # incur a significant performance hit
+    r = R.__new__(R)
+    # Someone could have registered a different backend for jax, so we attempt to fetch the
+    # updated backend here. If not, we fall back to the Array API backend.
+    xp = array_namespace(c[0])
+    r._xp = xp
+    r._backend = backend_registry.get(xp, xp_backend)
+    r._quat = c[0]
+    # We set _single to False for jax because the Array API backend supports broadcasting by
+    # default and hence returns the correct shape without the _single workaround
+    r._single = False
+    return r
+
+
+register_pytree_node(R, lambda v: ((v._quat,), None), rot_unflatten)
 
 
 ROTATION_FUNCTIONS = [
@@ -908,6 +932,12 @@ def run_benchmarks(
                             )
                             break
                         raise e
+                    except torch.OutOfMemoryError:
+                        print(f"Skipping {fn} with {xp} on {device} - Out of Memory")
+                        break
+                    except cupy.cuda.memory.OutOfMemoryError:
+                        print(f"Skipping {fn} with {xp} on {device} - Out of Memory")
+                        break
                     if len(results) == 0:
                         print(
                             f"Skipping remaining sample sizes for {fn} with {xp} on {device}"
