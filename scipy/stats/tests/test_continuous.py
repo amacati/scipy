@@ -48,7 +48,6 @@ class Test_RealInterval:
            inclusive_a=strategies.booleans(),
            inclusive_b=strategies.booleans(),
            data=strategies.data())
-    @pytest.mark.thread_unsafe
     def test_contains(self, shapes, inclusive_a, inclusive_b, data):
         # Test `contains` when endpoints are defined by parameters
         input_shapes, result_shape = shapes
@@ -128,7 +127,6 @@ class Test_RealInterval:
            inclusive_a=strategies.booleans(),
            inclusive_b=strategies.booleans(),
            )
-    @pytest.mark.thread_unsafe
     def test_str2(self, a, b, inclusive_a, inclusive_b):
         # I wrote this independently from the implementation of __str__, but
         # I imagine it looks pretty similar to __str__.
@@ -205,7 +203,6 @@ class TestDistributions:
     @settings(max_examples=20)
     @pytest.mark.parametrize('family', families)
     @given(data=strategies.data(), seed=strategies.integers(min_value=0))
-    @pytest.mark.thread_unsafe
     def test_support_moments_sample(self, family, data, seed):
         rng = np.random.default_rng(seed)
 
@@ -245,7 +242,6 @@ class TestDistributions:
                               ])
     @settings(max_examples=20)
     @given(data=strategies.data(), seed=strategies.integers(min_value=0))
-    @pytest.mark.thread_unsafe
     def test_funcs(self, family, data, seed, func, methods, arg):
         if family == Uniform and func == 'mode':
             pytest.skip("Mode is not unique; `method`s disagree.")
@@ -279,7 +275,6 @@ class TestDistributions:
                     check_ccdf2(dist, False, x, y, xy_result_shape, methods)
                     check_ccdf2(dist, True, x, y, xy_result_shape, methods)
 
-    @pytest.mark.thread_unsafe
     def test_plot(self):
         try:
             import matplotlib.pyplot as plt
@@ -1113,7 +1108,7 @@ class TestMakeDistribution:
                 'johnsonsb', 'kappa4', 'ksone', 'kstwo', 'kstwobign', 'norminvgauss',
                 'powerlognorm', 'powernorm', 'recipinvgauss', 'studentized_range',
                 'vonmises_line', # continuous
-                'betanbinom', 'zipf', 'logser', 'skellam'}  # discrete
+                'betanbinom', 'logser', 'skellam', 'zipf'}  # discrete
         if not int(os.environ.get('SCIPY_XSLOW', '0')) and distname in slow:
             pytest.skip('Skipping as XSLOW')
 
@@ -1122,25 +1117,23 @@ class TestMakeDistribution:
             'vonmises',               # circular distribution; shouldn't work
             'poisson_binom',          # vector shape parameter
             'hypergeom',              # distribution functions need interpolation
-            'nchypergeom_fisher',     # distribution functions don't accept NaN
-            'nchypergeom_wallenius',  # distribution functions don't accept NaN
-            'skellam',                # during `entropy`, Fatal Python error: Aborted!
-            'zipfian',                # during init, value error due to unexpected nans
+            'nchypergeom_fisher',     # distribution functions need interpolation
+            'nchypergeom_wallenius',  # distribution functions need interpolation
         }:
             return
 
         # skip single test, mostly due to slight disagreement
         custom_tolerances = {'ksone': 1e-5, 'kstwo': 1e-5}  # discontinuous PDF
         skip_entropy = {'kstwobign', 'pearson3'}  # tolerance issue
-        skip_skewness = {'exponpow', 'ksone'}  # tolerance issue
-        skip_kurtosis = {'chi', 'exponpow', 'invgamma',  # tolerance issue
-                         'johnsonsb', 'ksone', 'kstwo'}  # tolerance issue
+        skip_skewness = {'exponpow', 'ksone', 'nchypergeom_wallenius'}  # tolerance
+        skip_kurtosis = {'chi', 'exponpow', 'invgamma',  # tolerance
+                         'johnsonsb', 'ksone', 'kstwo',  # tolerance
+                         'nchypergeom_wallenius'}  # tolerance
         skip_logccdf = {'arcsine', 'skewcauchy', 'trapezoid', 'triang'}  # tolerance
         skip_raw = {2: {'alpha', 'foldcauchy', 'halfcauchy', 'levy', 'levy_l'},
                     3: {'pareto'},  # stats.pareto is just wrong
                     4: {'invgamma'}}  # tolerance issue
         skip_standardized = {'exponpow', 'ksone'}  # tolerances
-        skip_median = {'nhypergeom', 'yulesimon'}  # nan mismatch
 
         dist = getattr(stats, distname)
         params = dict(zip(dist.shapes.split(', '), distdata[1])) if dist.shapes else {}
@@ -1162,8 +1155,7 @@ class TestMakeDistribution:
                 # some continuous distributions have trouble with `logentropy` because
                 # it uses complex numbers
                 assert_allclose(np.exp(X.logentropy()), Y.entropy(), rtol=rtol)
-            if distname not in skip_median:
-                assert_allclose(X.median(), Y.median(), rtol=rtol)
+            assert_allclose(X.median(), Y.median(), rtol=rtol)
             assert_allclose(X.mean(), m, rtol=rtol, atol=atol)
             assert_allclose(X.variance(), v, rtol=rtol, atol=atol)
             if distname not in skip_skewness:
@@ -1182,11 +1174,18 @@ class TestMakeDistribution:
             if distname not in skip_logccdf:
                 assert_allclose(X.logccdf(x), Y.logsf(x), rtol=rtol)
             assert_allclose(X.ccdf(x), Y.sf(x), rtol=rtol)
-            if isinstance(dist, stats.rv_continuous):
-                # For discrete distributions, these won't agree at the far left end
-                # of the support, and the new infrastructure is slow there (for now).
-                assert_allclose(X.icdf(p), Y.ppf(p), rtol=rtol)
-                assert_allclose(X.iccdf(p), Y.isf(p), rtol=rtol)
+
+            # old infrastructure convention for ppf(p=0) and isf(p=1) is different than
+            # new infrastructure. Adjust reference values accordingly.
+            a, _ = Y.support()
+            ref_ppf = Y.ppf(p)
+            ref_ppf[p == 0] = a
+            ref_isf = Y.isf(p)
+            ref_isf[p == 1] = a
+
+            assert_allclose(X.icdf(p), ref_ppf, rtol=rtol)
+            assert_allclose(X.iccdf(p), ref_isf, rtol=rtol)
+
             for order in range(5):
                 if distname not in skip_raw.get(order, {}):
                     assert_allclose(X.moment(order, kind='raw'),
@@ -1195,10 +1194,14 @@ class TestMakeDistribution:
                 if distname not in skip_standardized:
                     assert_allclose(X.moment(order, kind='standardized'),
                                     Y.stats('mvsk'[order-1]), rtol=rtol, atol=atol)
-            seed = 845298245687345
-            assert_allclose(X.sample(shape=10, rng=seed),
-                            Y.rvs(size=10, random_state=np.random.default_rng(seed)),
-                            rtol=rtol)
+            if isinstance(dist, stats.rv_continuous):
+                # For discrete distributions, these won't agree at the far left end
+                # of the support, and the new infrastructure is slow there (for now).
+                seed = 845298245687345
+                assert_allclose(X.sample(shape=10, rng=seed),
+                                Y.rvs(size=10,
+                                      random_state=np.random.default_rng(seed)),
+                                rtol=rtol)
 
     def test_custom(self):
         rng = np.random.default_rng(7548723590230982)
@@ -1232,8 +1235,14 @@ class TestMakeDistribution:
 
         LogUniform = stats.make_distribution(MyLogUniform())
 
-        X = LogUniform(a=np.exp(1), b=np.exp(3))
-        Y = stats.exp(Uniform(a=1., b=3.))
+        X = LogUniform(a=1., b=np.e)
+        Y = stats.exp(Uniform(a=0., b=1.))
+
+        # pre-2.0 support is not needed for much longer, so let's just test with 2.0+
+        if np.__version__ >= "2.0":
+            assert str(X) == f"MyLogUniform(a=1.0, b={np.e})"
+            assert repr(X) == f"MyLogUniform(a=np.float64(1.0), b=np.float64({np.e}))"
+
         x = X.sample(shape=10, rng=rng)
         p = X.cdf(x)
 
@@ -1485,7 +1494,6 @@ class TestTransforms:
 
     @pytest.mark.fail_slow(10)
     @given(data=strategies.data(), seed=strategies.integers(min_value=0))
-    @pytest.mark.thread_unsafe
     def test_loc_scale(self, data, seed):
         # Need tests with negative scale
         rng = np.random.default_rng(seed)

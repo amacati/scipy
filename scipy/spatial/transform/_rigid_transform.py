@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from types import EllipsisType, ModuleType
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 
@@ -383,6 +383,12 @@ class RigidTransform:
         self._backend = backend_registry[xp]
         self._matrix = self._backend.from_matrix(matrix, normalize, copy)
 
+    def __repr__(self):
+        m = f"{self.as_matrix()!r}".splitlines()
+        # bump indent (+27 characters)
+        m[1:] = [" " * 27 + m[i] for i in range(1, len(m))]
+        return "RigidTransform.from_matrix(" + "\n".join(m) + ")"
+
     @classmethod
     def from_matrix(cls, matrix: ArrayLike) -> RigidTransform:
         """Initialize from a 4x4 transformation matrix.
@@ -399,17 +405,17 @@ class RigidTransform:
 
         Notes
         -----
-        4x4 rigid transformation matrices are of the form:
+        4x4 rigid transformation matrices are of the form::
 
-        ..
+            [       tx]
+            [   R   ty]
+            [       tz]
+            [ 0 0 0  1]
 
-            [R | t]
-            [0 | 1]
-
-        where ``R`` is a 3x3 rotation matrix and ``t`` is a 3x1 translation
-        vector ``[tx, ty, tz]``. As rotation matrices must be proper
-        orthogonal, the rotation component is orthonormalized using singular
-        value decomposition before initialization.
+        where ``R`` is a 3x3 rotation matrix and ``t = [tx, ty, tz]`` is a 3x1
+        translation vector. As rotation matrices must be proper orthogonal, the
+        rotation component is orthonormalized using singular value decomposition
+        before initialization.
 
         Examples
         --------
@@ -518,12 +524,16 @@ class RigidTransform:
         """
         # TODO: Should this not raise a TypeError?
         if not isinstance(rotation, Rotation):
-            raise ValueError(
+            raise TypeError(
                 "Expected `rotation` to be a `Rotation` instance, "
                 f"got {type(rotation)}."
             )
         quat = rotation.as_quat()
         xp = array_namespace(quat)
+        if quat.ndim > 2:  # Rotations now can have arbitrary leading dimensions
+            raise ValueError(
+                "Rotations with more than 1 leading dimension are not supported."
+            )
         backend = backend_registry[xp]
         matrix = backend.from_rotation(quat)
         return cls._from_raw_matrix(matrix, xp, backend)
@@ -930,15 +940,15 @@ class RigidTransform:
     def as_matrix(self) -> Array:
         """Return a copy of the matrix representation of the transform.
 
-        4x4 rigid transformation matrices are of the form:
+        4x4 rigid transformation matrices are of the form::
 
-        ..
+            [       tx]
+            [   R   ty]
+            [       tz]
+            [ 0 0 0  1]
 
-            [R | t]
-            [0 | 1]
-
-        where ``R`` is a 3x3 orthonormal rotation matrix and ``t`` is a 3x1
-        translation vector ``[tx, ty, tz]``.
+        where ``R`` is a 3x3 orthonormal rotation matrix and
+        ``t = [tx, ty, tz]`` is a 3x1 translation vector.
 
         Returns
         -------
@@ -985,17 +995,17 @@ class RigidTransform:
         """Return the translation and rotation components of the transform,
         where the rotation is applied first, followed by the translation.
 
-        4x4 rigid transformation matrices are of the form:
+        4x4 rigid transformation matrices are of the form::
 
-        ..
+            [       tx]
+            [   R   ty]
+            [       tz]
+            [ 0 0 0  1]
 
-            [R | t]
-            [0 | 1]
-
-        Where ``R`` is a 3x3 orthonormal rotation matrix and ``t`` is a 3x1
-        translation vector ``[tx, ty, tz]``. This function returns the rotation
-        corresponding to this rotation matrix ``r = Rotation.from_matrix(R)``
-        and the translation vector ``t``.
+        Where ``R`` is a 3x3 orthonormal rotation matrix and
+        ``t = [tx, ty, tz]`` is a 3x1 translation vector. This function
+        returns the rotation corresponding to this rotation matrix
+        ``r = Rotation.from_matrix(R)`` and the translation vector ``t``.
 
         Take a transform ``tf`` and a vector ``v``. When applying the transform
         to the vector, the result is the same as if the transform was applied
@@ -1142,6 +1152,8 @@ class RigidTransform:
             ...
         TypeError: Single transform has no len().
         """
+        # We don't use self._single here because we also want to raise an error for
+        # Array API backends that call len() on single RigidTransform objects.
         if self.single:
             raise TypeError("Single transform has no len")
         return self._matrix.shape[0]
@@ -1264,9 +1276,10 @@ class RigidTransform:
     def __mul__(self, other: RigidTransform) -> RigidTransform:
         """Compose this transform with the other.
 
-        If `p` and `q` are two transforms, then the composition of 'q followed
-        by p' is equivalent to `p * q`. In terms of transformation matrices,
-        the composition can be expressed as ``p.as_matrix() @ q.as_matrix()``.
+        If ``p`` and ``q`` are two transforms, then the composition of '``q``
+        followed by ``p``' is equivalent to ``p * q``. In terms of
+        transformation matrices, the composition can be expressed as
+        ``p.as_matrix() @ q.as_matrix()``.
 
         In terms of translations and rotations, the composition when applied to
         a vector ``v`` is equivalent to
@@ -1640,8 +1653,8 @@ class RigidTransform:
         """
         matrix = self._matrix
         if self._single:
-            matrix = matrix[0, ...]
-        return Rotation.from_matrix(matrix[..., :3, :3])
+            return Rotation.from_matrix(self._matrix[0, :3, :3])
+        return Rotation.from_matrix(self._matrix[..., :3, :3])
 
     @property
     def translation(self) -> Array:
@@ -1672,8 +1685,8 @@ class RigidTransform:
         """
         matrix = self._matrix
         if self._single:
-            matrix = matrix[0, ...]
-        return matrix[..., :3, 3]
+            return self._xp.asarray(self._matrix[0, :3, 3], copy=True)
+        return self._xp.asarray(self._matrix[..., :3, 3], copy=True)
 
     @property
     def single(self) -> bool:
@@ -1688,12 +1701,6 @@ class RigidTransform:
             otherwise.
         """
         return self._single or self._matrix.ndim == 2
-
-    def __repr__(self):
-        m = f"{self.as_matrix()!r}".splitlines()
-        # bump indent (+27 characters)
-        m[1:] = [" " * 27 + m[i] for i in range(1, len(m))]
-        return "RigidTransform.from_matrix(" + "\n".join(m) + ")"
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """Reduce the RigidTransform for pickling.

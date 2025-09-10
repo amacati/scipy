@@ -1,13 +1,14 @@
 import functools
 from abc import ABC, abstractmethod
 from functools import cached_property
+from types import GenericAlias
 import inspect
 import math
 
 import numpy as np
 from numpy import inf
 
-from scipy._lib._array_api import xp_promote
+from scipy._lib._array_api import xp_capabilities, xp_promote
 from scipy._lib._util import _rng_spawn, _RichResult
 from scipy._lib._docscrape import ClassDoc, NumpyDocString
 from scipy import special, stats
@@ -217,6 +218,9 @@ class _Domain(ABC):
 
     """
     symbols = {np.inf: r"\infty", -np.inf: r"-\infty", np.pi: r"\pi", -np.pi: r"-\pi"}
+
+    # generic type compatibility with scipy-stubs
+    __class_getitem__ = classmethod(GenericAlias)
 
     @abstractmethod
     def contains(self, x):
@@ -590,6 +594,10 @@ class _Parameter(ABC):
         of the parameter.
 
    """
+
+    # generic type compatibility with scipy-stubs
+    __class_getitem__ = classmethod(GenericAlias)
+
     def __init__(self, name, *, domain, symbol=None, typical=None):
         self.name = name
         self.symbol = symbol or name
@@ -2141,7 +2149,7 @@ class UnivariateDistribution(_ProbabilityDistribution):
 
         xrtol = None if _isnull(self.tol) else self.tol
         xatol = None if xatol is None else xatol
-        tolerances = dict(xrtol=xrtol, xatol=xatol)
+        tolerances = dict(xrtol=xrtol, xatol=xatol, fatol=0, frtol=0)
         return _chandrupatla(f3, a=res.xl, b=res.xr, args=args, **tolerances)
 
     ## Other
@@ -2889,7 +2897,7 @@ class UnivariateDistribution(_ProbabilityDistribution):
         return self._ilogccdf_dispatch(_log1mexp(x), **params)
 
     def _ilogcdf_inversion(self, x, **params):
-        return self._solve_bounded(self._logcdf_dispatch, x, params=params).x
+        return self._solve_bounded_continuous(self._logcdf_dispatch, x, params=params)
 
     @_set_invalid_nan
     def icdf(self, p, /, *, method=None):
@@ -2924,7 +2932,7 @@ class UnivariateDistribution(_ProbabilityDistribution):
         return out[()]
 
     def _icdf_inversion(self, x, **params):
-        return self._solve_bounded(self._cdf_dispatch, x, params=params).x
+        return self._solve_bounded_continuous(self._cdf_dispatch, x, params=params)
 
     @_set_invalid_nan
     def ilogccdf(self, logp, /, *, method=None):
@@ -2947,7 +2955,7 @@ class UnivariateDistribution(_ProbabilityDistribution):
         return self._ilogcdf_dispatch(_log1mexp(x), **params)
 
     def _ilogccdf_inversion(self, x, **params):
-        return self._solve_bounded(self._logccdf_dispatch, x, params=params).x
+        return self._solve_bounded_continuous(self._logccdf_dispatch, x, params=params)
 
     @_set_invalid_nan
     def iccdf(self, p, /, *, method=None):
@@ -2982,7 +2990,7 @@ class UnivariateDistribution(_ProbabilityDistribution):
         return out[()]
 
     def _iccdf_inversion(self, x, **params):
-        return self._solve_bounded(self._ccdf_dispatch, x, params=params).x
+        return self._solve_bounded_continuous(self._ccdf_dispatch, x, params=params)
 
     ### Sampling Functions
     # The following functions for drawing samples from the distribution are
@@ -3614,6 +3622,9 @@ class ContinuousDistribution(UnivariateDistribution):
     def _logpxf_dispatch(self, x, *, method=None, **params):
         return self._logpdf_dispatch(x, method=method, **params)
 
+    def _solve_bounded_continuous(self, func, p, params, xatol=None):
+        return self._solve_bounded(func, p, params=params, xatol=xatol).x
+
 
 class DiscreteDistribution(UnivariateDistribution):
     def _overrides(self, method_name):
@@ -3675,25 +3686,41 @@ class DiscreteDistribution(UnivariateDistribution):
             "Two argument cdf functions are currently only supported for "
             "continuous distributions.")
 
+    def _solve_bounded_discrete(self, func, p, params, comp):
+        res = self._solve_bounded(func, p, params=params, xatol=0.9)
+        x = np.asarray(np.floor(res.xr))
+
+        # if _chandrupatla finds exact inverse, the bracket may not have been reduced
+        # enough for `np.floor(res.x)` to be the appropriate value of `x`.
+        mask = res.fun == 0
+        x[mask] = np.floor(res.x[mask])
+
+        xmin, xmax = self._support(**params)
+        p, xmin, xmax = np.broadcast_arrays(p, xmin, xmax)
+        mask = comp(func(xmin, **params), p)
+        x[mask] = xmin[mask]
+
+        return x
+
     def _base_discrete_inversion(self, p, func, comp, /, **params):
         # For discrete distributions, icdf(p) is defined as the minimum n
         # such that cdf(n) >= p. iccdf(p) is defined as the minimum n such
         # that ccdf(n) <= p, or equivalently as iccdf(p) = icdf(1 - p).
 
-        res = self._solve_bounded(func, p, params=params, xatol=0.9)
         # First try to find where cdf(x) == p for the continuous extension of the
         # cdf. res.xl and res.xr will be a bracket for this root. The parameter
         # xatol in solve_bounded controls the bracket width. We thus know that
         # know cdf(res.xr) >= p, cdf(res.xl) <= p, and |res.xr - res.xl| <= 0.9.
         # This means the minimum integer n such that cdf(n) >= p is either floor(x)
         # or floor(x) + 1.
-        res, fr = np.asarray(np.floor(res.xr)), res.fr
+        x = self._solve_bounded_discrete(func, p, params=params, comp=comp)
+        # comp should be <= for ccdf, >= for cdf.
+        f = func(x, **params)
+        res = np.where(comp(f, p), x, x + 1.0)
         # xr is a bracket endpoint, and will usually be a finite value even when
         # the computed result should be nan. We need to explicitly handle this
         # case.
-        res[np.isnan(fr)] = np.nan
-        # comp should be <= for ccdf, >= for cdf.
-        res = np.where(comp(func(res, **params), p), res, res + 1.0)
+        res[np.isnan(f) | np.isnan(p)] = np.nan
         return res[()]
 
     def _icdf_inversion(self, x, **params):
@@ -3838,6 +3865,7 @@ _distribution_names = {
 
 
 # beta, genextreme, gengamma, t, tukeylambda need work for 1D arrays
+@xp_capabilities(np_only=True)
 def make_distribution(dist):
     """Generate a `UnivariateDistribution` class from a compatible object
 
@@ -3856,9 +3884,9 @@ def make_distribution(dist):
 
         `make_distribution` does not work perfectly with all instances of
         `rv_continuous`. Known failures include `levy_stable`, `vonmises`,
-        `hypergeom`, `nchypergeom_fisher`, `nchypergeom_wallenius`,
-        `poisson_binom`; and some methods of some distributions
-        will not support array shape parameters.
+        `hypergeom`, 'nchypergeom_fisher', 'nchypergeom_wallenius', and
+        `poisson_binom`. Some methods of some distributions will not support
+        array shape parameters.
 
     Parameters
     ----------
@@ -4121,6 +4149,8 @@ def _make_distribution_rv_generic(dist):
         _parameterizations = ([_Parameterization(*parameters)] if parameters
                               else [])
         _variable = _x_param
+
+        __class_getitem__ = None
 
         def __repr__(self):
             s = super().__repr__()
@@ -4504,6 +4534,7 @@ class TruncatedDistribution(TransformedDistribution):
                     f"lb={str(self.lb)}, ub={str(self.ub)})")
 
 
+@xp_capabilities(np_only=True)
 def truncate(X, lb=-np.inf, ub=np.inf):
     """Truncate the support of a random variable.
 
@@ -4929,6 +4960,7 @@ class OrderStatisticDistribution(TransformedDistribution):
                     f"n={str(self.n)})")
 
 
+@xp_capabilities(np_only=True)
 def order_statistic(X, /, *, r, n):
     r"""Probability distribution of an order statistic
 
@@ -5080,6 +5112,26 @@ class Mixture(_ProbabilityDistribution):
     ----------
     .. [1] Mixture distribution, *Wikipedia*,
            https://en.wikipedia.org/wiki/Mixture_distribution
+
+
+    Examples
+    --------
+    A mixture of normal distributions:
+
+    >>> import numpy as np
+    >>> from scipy import stats
+    >>> import matplotlib.pyplot as plt
+    >>> X1 = stats.Normal(mu=-2, sigma=1)
+    >>> X2 = stats.Normal(mu=2, sigma=1)
+    >>> mixture = stats.Mixture([X1, X2], weights=[0.4, 0.6])
+    >>> print(f'mean: {mixture.mean():.2f}, '
+    ...       f'median: {mixture.median():.2f}, '
+    ...       f'mode: {mixture.mode():.2f}')
+    mean: 0.40, median: 1.04, mode: 2.00
+    >>> x = np.linspace(-10, 10, 300)
+    >>> plt.plot(x, mixture.pdf(x))
+    >>> plt.title('PDF of normal distribution mixture')
+    >>> plt.show()
 
     """
     # Todo:
@@ -5572,6 +5624,7 @@ class FoldedDistribution(TransformedDistribution):
             return f"abs({str(self._dist)})"
 
 
+@xp_capabilities(np_only=True)
 def abs(X, /):
     r"""Absolute value of a random variable
 
@@ -5614,6 +5667,7 @@ def abs(X, /):
     return FoldedDistribution(X)
 
 
+@xp_capabilities(np_only=True)
 def exp(X, /):
     r"""Natural exponential of a random variable
 
@@ -5660,6 +5714,7 @@ def exp(X, /):
                                             logdh=lambda u: -np.log(u))
 
 
+@xp_capabilities(np_only=True)
 def log(X, /):
     r"""Natural logarithm of a non-negative random variable
 
@@ -5671,7 +5726,7 @@ def log(X, /):
     Returns
     -------
     Y : `ContinuousDistribution`
-        A random variable :math:`Y = \exp(X)`.
+        A random variable :math:`Y = \log(X)`.
 
     Examples
     --------
