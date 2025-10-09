@@ -6,6 +6,7 @@ os.environ["SCIPY_ARRAY_API"] = "1"
 import jax
 from pathlib import Path
 from scipy.spatial.transform import Rotation as R, RigidTransform
+from scipy.spatial.transform._rigid_transform import xp_backend, backend_registry
 from rotation_benchmark import (
     benchmark_function,
     create_random_data,
@@ -13,6 +14,27 @@ from rotation_benchmark import (
 )
 from array_api_compat import array_namespace
 import fire
+from jax.tree_util import register_pytree_node
+
+def tf_unflatten(_, c):
+    # Optimization: We do not want to call __init__ here because it would perform normalizations
+    # twice. More importantly, it would call the non-jitted Array API backend and therefore
+    # incur a significant performance hit
+    tf = RigidTransform.__new__(RigidTransform)
+    # Someone could have registered a different backend for jax, so we attempt to fetch the
+    # updated backend here. If not, we fall back to the Array API backend.
+    xp = array_namespace(c[0])
+    tf._xp = xp
+    tf._backend = backend_registry.get(xp, xp_backend)
+    tf._matrix = c[0]
+    # We set _single to False for jax because the Array API backend supports broadcasting by
+    # default and hence returns the correct shape without the _single workaround
+    tf._single = False
+    return tf
+
+
+register_pytree_node(RigidTransform, lambda v: ((v._matrix,), None), tf_unflatten)
+
 
 TRANSFORM_FUNCTIONS = [
     "from_matrix",
