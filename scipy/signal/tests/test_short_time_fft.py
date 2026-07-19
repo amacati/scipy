@@ -8,14 +8,6 @@ categories:
     `test_from_window` function).
 3. Test algorithmic properties of STFT/ISTFT. Some tests were ported from
    ``test_spectral.py``.
-
-Notes
------
-* Mypy 0.990 does interpret the line::
-
-        from scipy.stats import norm as normal_distribution
-
-  incorrectly (but the code works), hence a ``type: ignore`` was appended.
 """
 import math
 from itertools import product
@@ -26,7 +18,7 @@ import numpy as np
 import pytest
 from scipy._lib._array_api import xp_assert_close, xp_assert_equal
 from scipy.fft import fftshift
-from scipy.stats import norm as normal_distribution  # type: ignore
+from scipy.stats import norm as normal_distribution
 from scipy.signal import check_COLA, get_window, welch, stft, istft, spectrogram
 
 from scipy.signal._short_time_fft import FFT_MODE_TYPE, \
@@ -95,13 +87,17 @@ def test_closest_STFT_dual_window_roundtrip(win_name, m, hop, sym_win, scaled):
     d2, s2 = closest_STFT_dual_window(win, hop, scaled=scaled)  # equals d1, s1
     d3, s3 = closest_STFT_dual_window(d1, hop, win * s1, scaled=True)  # roundtrip
 
-    # Validate default for parameter `desired_dual` works (hard coded => assert ok):
-    xp_assert_equal(d2, d1, err_msg="Default for parameter `desired_dual` is not ok!")
-    assert s2 == s1, "Default for parameter `desired_dual` is not ok!"
+    # (d1, s1) == (d2, s2) should hold, but the BLAS backend used to calculate the inner
+    # product in `closest_STFT_dual_window` does not guarantee exact reproducibility
+    # due to indeterministic summation order during parallel execution. Hence, only
+    # approximate equality is verified. Consult NumPy 29873 issue for discussion.
+    res = np.finfo(win.dtype).resolution  # 1e-15 for float64
+    err_msg = "Default for parameter `desired_dual` is not ok!"
+    xp_assert_close(d2, d1, atol=res, err_msg=err_msg)
+    xp_assert_close(s2, s1, atol=res, err_msg=err_msg)
 
-    res = np.finfo(win.dtype).resolution * 5
-    xp_assert_close(s1*s3, 1., atol=res, err_msg="Invalid Scale factors")
-    xp_assert_close(d3, win, atol=res, err_msg="Roundtrip failed!")
+    xp_assert_close(s1*s3, 1., atol=res*5, err_msg="Invalid Scale factors")
+    xp_assert_close(d3, win, atol=res*5, err_msg="Roundtrip failed!")
 
     if scaled:  # check that scaling factor is correct:
         d3, _ = closest_STFT_dual_window(win, hop, np.ones(m) * s1, scaled=False)
@@ -652,7 +648,7 @@ def test_fft_func_roundtrip(n: int):
                         f"{f_typ=}, {mfft=}, {scaling=}, {phase_shift=}")
 
     SFT = ShortTimeFFT(w, h_n, fs=1)
-    SFT._fft_mode = 'invalid_fft'  # type: ignore
+    SFT._fft_mode = 'invalid_fft'
     with pytest.raises(RuntimeError):
         SFT._fft_func(x0)
     with pytest.raises(RuntimeError):

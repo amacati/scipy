@@ -8,9 +8,6 @@
 # 8   Means test runs forever
 
 ###  test_besselpoly
-###  test_mathieu_a
-###  test_mathieu_even_coef
-###  test_mathieu_odd_coef
 ###  test_modfresnelp
 ###  test_modfresnelm
 #    test_pbdv_seq
@@ -25,7 +22,7 @@ import sys
 import warnings
 
 import numpy as np
-from numpy import (array, isnan, r_, arange, finfo, pi, sin, cos, tan, exp,
+from numpy import (array, isnan, r_, arange, finfo, pi, sin, cos, exp,
         log, zeros, sqrt, asarray, inf, nan_to_num, real, arctan, double,
         array_equal)
 
@@ -36,11 +33,9 @@ from numpy.testing import (assert_equal, assert_array_equal, assert_,
 
 from scipy import special
 import scipy.special._ufuncs as cephes
-from scipy.special import ellipe, ellipk, ellipkm1
-from scipy.special import elliprc, elliprd, elliprf, elliprg, elliprj
-from scipy.special import softplus
-from scipy.special import mathieu_odd_coef, mathieu_even_coef, stirling2
-from scipy._lib._util import np_long, np_ulong
+from scipy.special import (ellipe, ellipk, ellipkm1 ,elliprc, elliprd, elliprf, elliprg,
+                           elliprj, softplus, mathieu_odd_coef, mathieu_even_coef,
+                           stirling2, cosdg, sindg, tandg, cotdg)
 from scipy._lib._array_api import xp_assert_close, xp_assert_equal, SCIPY_ARRAY_API
 
 from scipy.special._basic import (
@@ -48,6 +43,7 @@ from scipy.special._basic import (
 )
 from scipy.special._testutils import with_special_errors, \
      assert_func_equal, FuncData
+from scipy.integrate import quad
 
 import math
 
@@ -155,9 +151,6 @@ class TestCephes:
     def test_bdtrc(self):
         assert_equal(cephes.bdtrc(1,3,0.5),0.5)
 
-    def test_bdtrin(self):
-        assert_equal(cephes.bdtrin(1,0,1),5.0)
-
     def test_bdtrik(self):
         cephes.bdtrik(1,3,0.5)
 
@@ -190,9 +183,6 @@ class TestCephes:
 
     def test_chndtrix(self):
         assert_equal(cephes.chndtrix(0,1,0),0.0)
-
-    def test_cosdg(self):
-        assert_equal(cephes.cosdg(0),1.0)
 
     def test_cosm1(self):
         assert_equal(cephes.cosm1(0),0.0)
@@ -544,11 +534,41 @@ class TestCephes:
     def test_lpmv(self):
         assert_equal(cephes.lpmv(0,0,1),1.0)
 
-    def test_mathieu_a(self):
-        assert_equal(cephes.mathieu_a(1,0),1.0)
+    def test_mathieu_a_q0(self):
+        # When q is 0, the exact result is m**2.
+        m = np.array([1, 2, 5])
+        assert_equal(cephes.mathieu_a(m, 0), m**2)
 
-    def test_mathieu_b(self):
-        assert_equal(cephes.mathieu_b(1,0),1.0)
+    # Reference values were computed with Wolfram Alpha:
+    #     MathieuCharacteristicA[m, q]
+    @pytest.mark.parametrize(
+        'm, q, ref',
+        [(0, 8, -10.6067292355526479852024),
+         (3, 3/2, 9.19330104768060974047804),
+         (5, 1/4, 25.0013021454698022809572),
+         (8, -10, 64.8008910105046444848962)]
+    )
+    def test_mathieu_a(self, m, q, ref):
+        y = cephes.mathieu_a(m, q)
+        assert_allclose(y, ref, rtol=1e-15)
+
+    def test_mathieu_b_q0(self):
+        # When q is 0, the exact result is m**2.
+        m = np.array([1, 2, 5])
+        assert_equal(cephes.mathieu_b(m, 0), m**2)
+
+    # Reference values were computed with Wolfram Alpha:
+    #     MathieuCharacteristicB[m, q]
+    @pytest.mark.parametrize(
+        'm, q, ref',
+        [(1, 15, -22.5130034974234666335),
+         (5, 3, 25.1870798027185125480),
+         (9, 1/4, 81.00039062627570760760),
+         (10, -3, 100.0454683359769326164)]
+    )
+    def test_mathieu_b(self, m, q, ref):
+        y = cephes.mathieu_b(m, q)
+        assert_allclose(y, ref, rtol=1e-15)
 
     def test_mathieu_cem(self):
         assert_equal(cephes.mathieu_cem(1,0,0),(1.0,0.0))
@@ -674,9 +694,6 @@ class TestCephes:
     def test_nbdtrik(self):
         cephes.nbdtrik(1,.4,.5)
 
-    def test_nbdtrin(self):
-        assert_equal(cephes.nbdtrin(1,0,0),5.0)
-
     def test_ncfdtr(self):
         assert_equal(cephes.ncfdtr(1,1,1,0),0.0)
 
@@ -708,12 +725,6 @@ class TestCephes:
         p = cephes.ncfdtr(dfn, 2, 0.25, 15)
         assert_allclose(cephes.ncfdtridfn(p, 2, 0.25, 15), dfn, rtol=1e-5)
 
-    @pytest.mark.xfail(
-        reason=(
-            "ncfdtr uses a Boost math implementation but ncfdtrinc"
-            "inverts the less accurate cdflib implementation of ncfdtr."
-        )
-    )
     def test_ncfdtrinc(self):
         nc = [0.5, 1.5, 2.0]
         p = cephes.ncfdtr(2, 3, nc, 15)
@@ -742,10 +753,6 @@ class TestCephes:
 
     def test_nrdtrimn(self):
         assert_allclose(cephes.nrdtrimn(0.5, 1, 1), 1.0, atol=1e-6, rtol=0)
-
-    def test_nrdtrisd(self):
-        assert_allclose(cephes.nrdtrisd(0.5,0.5,0.5), 0.0,
-                         atol=0, rtol=0)
 
     def test_obl_ang1(self):
         cephes.obl_ang1(1,1,1,0)
@@ -799,12 +806,6 @@ class TestCephes:
             warnings.filterwarnings("ignore", msg, RuntimeWarning)
             cephes.pdtri(0.5,0.5)
 
-    def test_pdtrik(self):
-        k = cephes.pdtrik(0.5, 1)
-        assert_allclose(cephes.gammaincc(k + 1, 1), 0.5, atol=1.5e-7, rtol=0)
-        # Edge case: m = 0 or very small.
-        k = cephes.pdtrik([[0], [0.25], [0.95]], [0, 1e-20, 1e-6])
-        assert_array_equal(k, np.zeros((3, 3)))
 
     def test_pro_ang1(self):
         cephes.pro_ang1(1,1,1,0)
@@ -858,9 +859,6 @@ class TestCephes:
         s, c = cephes.sici(-np.inf)
         assert_allclose(s, -np.pi * 0.5, atol=1.5e-7, rtol=0)
         assert_(np.isnan(c), "cosine integral(-inf) is not nan")
-
-    def test_sindg(self):
-        assert_equal(cephes.sindg(90),1.0)
 
     def test_smirnov(self):
         assert_equal(cephes.smirnov(1,.1),0.9)
@@ -1567,6 +1565,21 @@ class TestCombinatorics:
         with pytest.raises(ValueError, match=msg):
             special.comb(3, 4.4, exact=True)
 
+    @pytest.mark.parametrize('N', [0, 5, 10])
+    @pytest.mark.parametrize('exact', [True, False])
+    def test_comb_repetition_k_zero(self, N, exact):
+        # Regression test for gh-23867
+        # C(n, 0) should always be 1 for n >= 0, regardless of repetition
+        actual = special.comb(N, 0, exact=exact, repetition=True)
+        assert actual == 1
+        assert type(actual) is int if exact else np.float64
+
+    def test_comb_repetition_k_zero_array(self):
+        # Test array-like input with exact=False for gh-23867
+        N = np.array([0, 5, 10])
+        result = special.comb(N, 0, exact=False, repetition=True)
+        expected = np.array([1.0, 1.0, 1.0])
+        assert_equal(result, expected)
 
     def test_perm(self):
         assert_allclose(special.perm([10, 10], [3, 4]), [720., 5040.])
@@ -1606,91 +1619,65 @@ class TestTrigonometric:
         cbrl1 = 27.9**(1.0/3.0)
         assert_allclose(cb1, cbrl1, atol=1.5e-8, rtol=0)
 
-    def test_cosdg(self):
-        cdg = special.cosdg(90)
-        cdgrl = cos(pi/2.0)
-        assert_allclose(cdg, cdgrl, atol=1.5e-8, rtol=0)
+    def test_cosdg_exact(self):
+        angles = np.asarray([90, 0., -0.])
+        expected = np.asarray([0, 1, 1])
+        assert_equal(cosdg(angles), expected)
 
-    def test_cosdgmore(self):
-        cdgm = special.cosdg(30)
-        cdgmrl = cos(pi/6.0)
-        assert_allclose(cdgm, cdgmrl, atol=1.5e-8, rtol=0)
+    def test_cosdg_inexact(self):
+        angles = np.asarray([30, 45])
+        expected = np.asarray([np.sqrt(3)/2, 1/np.sqrt(2)])
+        assert_allclose(cosdg(angles), expected, atol=1.5e-8, rtol=0)
 
     def test_cosm1(self):
         cs = (special.cosm1(0),special.cosm1(.3),special.cosm1(pi/10))
         csrl = (cos(0)-1,cos(.3)-1,cos(pi/10)-1)
         assert_allclose(cs, csrl, atol=1.5e-8, rtol=0)
 
-    def test_cotdg(self):
-        ct = special.cotdg(30)
-        ctrl = tan(pi/6.0)**(-1)
-        assert_allclose(ct, ctrl, atol=1.5e-8, rtol=0)
+    def test_cotdg_exact(self):
+        angles = np.asarray([45, -45, 135, -135, 225, -225, 315, -315,
+                             0.0, 90, 180, 270, 360, -0., -90, -180, -270, -360])
+        expected = np.asarray([1, -1, -1, 1, 1, -1, -1, 1, np.inf, 0., -np.inf, 0.,
+                               np.inf, -np.inf, 0., np.inf, -0., -np.inf])
+        assert_equal(cotdg(angles), expected)
 
-    def test_cotdgmore(self):
-        ct1 = special.cotdg(45)
-        ctrl1 = tan(pi/4.0)**(-1)
-        assert_allclose(ct1, ctrl1, atol=1.5e-8, rtol=0)
+    def test_cotdg_inexact(self):
+        angles = np.asarray([30])
+        expected = np.asarray([np.sqrt(3)])
+        assert_allclose(cotdg(angles), expected, atol=1.5e-8, rtol=0)
 
     def test_specialpoints(self):
-        assert_allclose(special.cotdg(45), 1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(-45), -1.0, atol=1.5e-14, rtol=0)
         assert_allclose(special.cotdg(90), 0.0, atol=1.5e-14, rtol=0)
         assert_allclose(special.cotdg(-90), 0.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(135), -1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(-135), 1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(225), 1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(-225), -1.0, atol=1.5e-14, rtol=0)
         assert_allclose(special.cotdg(270), 0.0, atol=1.5e-14, rtol=0)
         assert_allclose(special.cotdg(-270), 0.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(315), -1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(-315), 1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.cotdg(765), 1.0, atol=1.5e-14, rtol=0)
 
     def test_sinc(self):
         # the sinc implementation and more extensive sinc tests are in numpy
         assert_array_equal(special.sinc([0]), 1)
         assert_equal(special.sinc(0.0), 1.0)
 
-    def test_sindg(self):
-        sn = special.sindg(90)
-        assert_equal(sn,1.0)
+    def test_sindg_exact(self):
+        angles = np.asarray([90, 0., -0.])
+        expected = np.asarray([1, 0., -0.])
+        assert_equal(sindg(angles), expected)
 
-    def test_sindgmore(self):
-        snm = special.sindg(30)
-        snmrl = sin(pi/6.0)
-        assert_allclose(snm, snmrl, atol=1.5e-8, rtol=0)
-        snm1 = special.sindg(45)
-        snmrl1 = sin(pi/4.0)
-        assert_allclose(snm1, snmrl1, atol=1.5e-8, rtol=0)
+    def test_sindg_inexact(self):
+        angles = np.asarray([30, 45])
+        expected = np.asarray([0.5, 1/np.sqrt(2)])
+        assert_allclose(sindg(angles), expected, atol=1.5e-8, rtol=0)
 
+    def test_tandg_exact(self):
+        angles = np.asarray([0., -0., 45, -45, 135, -135, 90, 180, 270, 360,
+                             -90, -180, -270, -360])
+        expected = np.asarray([0., -0., 1, -1, -1, 1, np.inf, -0., -np.inf, 0,
+                               -np.inf, -0., np.inf, 0])
+        assert_equal(tandg(angles), expected)
 
-class TestTandg:
-
-    def test_tandg(self):
-        tn = special.tandg(30)
-        tnrl = tan(pi/6.0)
-        assert_allclose(tn, tnrl, atol=1.5e-8, rtol=0)
-
-    def test_tandgmore(self):
-        tnm = special.tandg(45)
-        tnmrl = tan(pi/4.0)
-        assert_allclose(tnm, tnmrl, atol=1.5e-8, rtol=0)
-        tnm1 = special.tandg(60)
-        tnmrl1 = tan(pi/3.0)
-        assert_allclose(tnm1, tnmrl1, atol=1.5e-8, rtol=0)
-
-    def test_specialpoints(self):
-        assert_allclose(special.tandg(0), 0.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(45), 1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(-45), -1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(135), -1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(-135), 1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(180), 0.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(-180), 0.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(225), 1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(-225), -1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(315), -1.0, atol=1.5e-14, rtol=0)
-        assert_allclose(special.tandg(-315), 1.0, atol=1.5e-14, rtol=0)
+    def test_tandg_inexact(self):
+        angle = np.asarray([30, 60])
+        expected = np.asarray([1/np.sqrt(3), np.sqrt(3)])
+        assert_allclose(tandg(angle), expected, atol=1.5e-8, rtol=0)
 
 
 class TestEllip:
@@ -1702,6 +1689,34 @@ class TestEllip:
         el = special.ellipj(0.2,0)
         rel = [sin(0.2),cos(0.2),1.0,0.20]
         assert_allclose(el, rel, atol=1.5e-13, rtol=0)
+
+    @pytest.mark.parametrize(
+        "u, m, expected",
+        [
+            (
+                20,
+                -0.0001,
+                [0.91314537820787445, 0.40763404943355497, 1.0000416908550234],
+            ),
+            (
+                20,
+                -1,
+                [-0.89393389569287096, 0.44819882879294476, 1.3413119733561736],
+            ),
+            (
+                20,
+                -251.18864315095823,
+                [0.19646166026649953, 0.98051150734977632, 3.2703477287623963],
+            ),
+        ],
+    )
+    def test_ellipj_negative_m(self, u, m, expected):
+        sn, cn, dn, ph = special.ellipj(u, m)
+
+        assert_allclose([sn, cn, dn], expected, rtol=1e-8, atol=0)
+        assert_allclose(sn**2 + cn**2, 1, rtol=1e-12, atol=0)
+        assert_allclose(dn**2 + m * sn**2, 1, rtol=1e-12, atol=0)
+        assert_allclose(special.ellipkinc(ph, m), u, rtol=1e-8, atol=0)
 
     def test_ellipk(self):
         elk = special.ellipk(.2)
@@ -2298,7 +2313,7 @@ class TestFactorialFunctions:
         "n",
         [
             np.nan, np.float64("nan"), np.nan + np.nan*1j, np.complex128("nan+nanj"),
-            np.inf, np.inf + 0j, -np.inf, -np.inf + 0j, None, np.datetime64("nat")
+            np.inf, np.inf + 0j, -np.inf, -np.inf + 0j, None, np.datetime64("nat", "s")
         ],
         ids=[
             "NaN", "np.float64('nan')", "NaN+i*NaN", "np.complex128('nan+nanj')",
@@ -2452,7 +2467,7 @@ class TestFactorialFunctions:
             if exact:
                 # avoid attempting huge calculation
                 pass
-            elif np.lib.NumpyVersion(np.__version__) >= "2.0.0":
+            else:
                 # N does not fit into int64 --> cannot use _check
                 _check_inf(dtype(N-1))
                 _check_inf(np.array(N-1, dtype=dtype))
@@ -2917,7 +2932,7 @@ class TestFactorialFunctions:
     @pytest.mark.parametrize("exact,extend",
                              [(True, "zero"), (False, "zero"), (False, "complex")])
     # neither integer, float nor complex
-    @pytest.mark.parametrize("k", ["string", np.datetime64("nat")],
+    @pytest.mark.parametrize("k", ["string", np.datetime64("nat", "s")],
                              ids=["string", "NaT"])
     def test_factorialk_raises_k_other(self, k, exact, extend, boxed):
         n = [1] if boxed else 1
@@ -2932,7 +2947,7 @@ class TestFactorialFunctions:
         kw = {"k": k, "exact": exact, "extend": extend}
         if exact and k in _FACTORIALK_LIMITS_64BITS.keys():
             n = np.array([_FACTORIALK_LIMITS_32BITS[k]])
-            assert_equal(special.factorialk(n, **kw).dtype, np_long)
+            assert_equal(special.factorialk(n, **kw).dtype, np.long)
             assert_equal(special.factorialk(n + 1, **kw).dtype, np.int64)
             # assert maximality of limits for given dtype
             assert special.factorialk(n + 1, **kw) > np.iinfo(np.int32).max
@@ -3089,6 +3104,18 @@ class TestGamma:
     )
     def test_poles(self, x, expected):
         assert_array_equal(special.gamma(x), expected)
+
+    @pytest.mark.parametrize("a, x", [
+        (1, 2), (2, 1)
+    ])
+    def test_log_gammainc_gammaincc(self, a, x):
+        # Basic consistency check with gammainc/gammaincc away from the tails.
+        # Tail accuracy is covered by Boost's tests, where log_gammainc and
+        # log_gammaincc are implemented.
+        assert_allclose(np.log(special.gammainc(a, x)), special.log_gammainc(a, x),
+                        rtol=1e-15)
+        assert_allclose(np.log(special.gammaincc(a, x)), special.log_gammaincc(a, x),
+                        rtol=1e-15)
 
 
 class TestHankel:
@@ -3955,6 +3982,39 @@ class TestBessel:
         x = special.ivp(1,2)
         assert_allclose(x, y, atol=1.5e-10, rtol=0)
 
+    def test_gh_22706_j1_tiny_inputs(self):
+        # for tiny inputs, j1(x)=x/2 in double precision
+        # reference values can also be confirmed with mpmath (see below test)
+        x = np.array([-1e-300, 1e-200, -1e-100])
+        assert_allclose(special.j1(x), x/2, atol=1.5e-8, rtol=0)
+
+    def test_gh_22706_j1_large_inputs(self):
+        # reference values computed with mpmath
+        # from mpmath import mp
+        # mp.dps = 1000
+        # float(mp.besselj(1, x))
+        x = np.array([1e20, 1.438449888287654e+17])
+        reference = np.array([-7.95068198242545e-11, -1.968878305887983e-09])
+        assert_allclose(special.j1(x), reference, rtol=1e-15)
+
+
+    @pytest.mark.parametrize("x, expected",
+        [(1e15, 6.156638646885021e-09),  # 1/sqrt(eps) < x < 1/eps
+         (1e30, -5.589003016686147e-16)  # x > 1/eps
+        ])
+    def test_gh22705(self, x, expected):
+        # reference values computed with mpmath
+        # from mpmath import mp
+        # mp.dps = 1000
+        # float(mp.besselj(0, mp.mpf('1e15')))
+        assert_allclose(special.j0(x), expected, rtol=5e-15)
+
+
+    def test_gh25199(self):
+        # regression test that tiny inputs in j0 don't cause overflow
+        with special.errstate(overflow="raise"):
+            assert_allclose(special.j0(1e-200), 1.0, atol=0, rtol=0)
+
 
 class TestLaguerre:
     def test_laguerre(self):
@@ -4012,18 +4072,90 @@ class TestLog1p:
         assert_allclose(l1pm, l1pmrl, atol=1.5e-8, rtol=0)
 
 
+def ce_fourier_coefficient_using_integral(k, n, q):
+    """
+    Compute the Fourier coefficient of the even Mathieu function.
+    The integral definition of a Fourier coefficient is used.
+    This function is used as an alternative implementation of
+    mathieu_even_coef().
+    """
+    period = 180 if n % 2 == 0 else 360
+    # For k = 0, the factor outside the integral is (1/period).
+    # For k = 1, 2, 3, ..., the factor is (2/period).
+    c = (1/period)*quad(lambda t: special.mathieu_cem(n, q, t)[0],
+                        -period/2, period/2,
+                        weight='cos', wvar=2*np.pi*k/period, epsrel=1e-14)[0]
+    if k > 0:
+        c *= 2
+    return c
+
+
+def se_fourier_coefficient_using_integral(k, n, q):
+    """
+    Compute the Fourier coefficient of the odd Mathieu function.
+    The integral definition of a Fourier coefficient is used.
+    This function is used as an alternative implementation of
+    mathieu_odd_coef().
+    """
+    # For k == 0, the result is 0. (The test code won't call this
+    # function with k == 0, but we'll check anyway.)
+    if k == 0:
+        return 0.0
+    period = 180 if n % 2 == 0 else 360
+    c = (2/period)*quad(lambda t: special.mathieu_sem(n, q, t)[0],
+                        -period/2, period/2,
+                        weight='sin', wvar=2*np.pi*k/period, epsrel=1e-14)[0]
+    return c
+
+
 class TestMathieu:
 
-    def test_mathieu_a(self):
-        pass
+    @pytest.mark.parametrize('n, q', [(4, 3.5), (8, 4.25)])
+    def test_mathieu_even_coef_against_integral_n_even(self, n, q):
+        # Get the nonzero Fourier coefficients.  For the even Mathieu functions
+        # with even n, these are the coefficients of the cosine series. None of
+        # the coefficients are 0 for k = 0, 1, 2, 3, ...
+        A = special.mathieu_even_coef(n, q)
+        # Compare the first four nonzero Fourier coefficients to the coefficients
+        # computed using the integral definition.
+        c = [ce_fourier_coefficient_using_integral(k, n, q) for k in range(4)]
+        assert_allclose(c, A[:len(c)], rtol=1e-10)
 
-    def test_mathieu_even_coef(self):
-        special.mathieu_even_coef(2,5)
-        # Q not defined broken and cannot figure out proper reporting order
+    @pytest.mark.parametrize('n, q', [(3, 3.5), (7, 2)])
+    def test_mathieu_even_coef_against_integral_n_odd(self, n, q):
+        # Get the nonzero Fourier coefficients.  For the even Mathieu functions
+        # with odd n, these are the coefficients of the cosine series. Only the
+        # coefficients c[k] for k = 1, 3, 5, 7, ... are nonzero.  These are the
+        # values returned by mathieu_even_coef(n, q).
+        A = special.mathieu_even_coef(n, q)
+        # Compare the first 4 nonzero Fourier coefficients to the coefficients
+        # computed using the integral definition.
+        c = [ce_fourier_coefficient_using_integral(k, n, q) for k in range(1, 9, 2)]
+        assert_allclose(c, A[:len(c)], rtol=1e-10)
 
-    def test_mathieu_odd_coef(self):
-        # same problem as above
-        pass
+    @pytest.mark.parametrize('n, q', [(2, 3.5), (10, 2)])
+    def test_mathieu_odd_coef_against_integral_n_even(self, n, q):
+        # Get the nonzero Fourier coefficients.  For the odd Mathieu functions
+        # with even n, these are the coefficients of the sine series. Only the
+        # coefficients c[k] for k = 1, 2, 3, 4, ... are nonzero.  These are the
+        # values returned by mathieu_odd_coef(n, q).
+        B = special.mathieu_odd_coef(n, q)
+        # Compare the first 4 nonzero Fourier coefficients to the coefficients
+        # computed using the integral definition.
+        c = [se_fourier_coefficient_using_integral(k, n, q) for k in range(1, 5)]
+        assert_allclose(c, B[:len(c)], rtol=1e-10)
+
+    @pytest.mark.parametrize('n, q', [(3, 3.5), (7, 2)])
+    def test_mathieu_odd_coef_against_integral_n_odd(self, n, q):
+        # Get the nonzero Fourier coefficients.  For the odd Mathieu functions
+        # with odd n, these are the coefficients of the sine series. Only the
+        # coefficients c[k] for k = 1, 3, 5, 7, ... are nonzero.  These are the
+        # values returned by mathieu_odd_coef(n, q).
+        B = special.mathieu_odd_coef(n, q)
+        # Compare the first 4 nonzero Fourier coefficients to the coefficients
+        # computed using the integral definition.
+        c = [se_fourier_coefficient_using_integral(k, n, q) for k in range(1, 9, 2)]
+        assert_allclose(c, B[:len(c)], rtol=1e-10)
 
 
 class TestFresnelIntegral:
@@ -4727,8 +4859,8 @@ class TestStirling2:
     def test_numpy_array_unsigned_int_dtype(self, is_exact, comp, kwargs):
         # numpy unsigned integers are allowed as dtype in numpy arrays
         ans = asarray(self.table[4][1:])
-        n = asarray([4, 4, 4, 4], dtype=np_ulong)
-        k = asarray([1, 2, 3, 4], dtype=np_ulong)
+        n = asarray([4, 4, 4, 4], dtype=np.ulong)
+        k = asarray([1, 2, 3, 4], dtype=np.ulong)
         comp(stirling2(n, k, exact=False), ans, **kwargs)
 
     @pytest.mark.parametrize("is_exact, comp, kwargs", [

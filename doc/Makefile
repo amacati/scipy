@@ -76,11 +76,11 @@ dist:
 	install -d build
 	rm -rf build/env
 	$(PYTHON) -mvenv --system-site-packages build/env
-	$(CURDIR)/build/env/bin/python -mpip install -r ../requirements/doc.txt
-	$(CURDIR)/build/env/bin/python -mpip install ..
+	pushd ..
+	$(CURDIR)/build/env/bin/python -mpip install --group doc
+	$(CURDIR)/build/env/bin/python -mpip install .
+	popd
 	make PYTHON="$(CURDIR)/build/env/bin/python" doc-dist
-
-doc-dist: VERSIONWARNING=-t versionwarning
 
 doc-dist: html
 	-test -d build/htmlhelp || make htmlhelp-build
@@ -112,7 +112,7 @@ upload:
 html: version-check html-build
 html-build:
 	mkdir -p build/html build/doctrees
-	$(SPHINXBUILD) -WT --keep-going $(VERSIONWARNING) -b html $(ALLSPHINXOPTS) build/html $(FILES)
+	$(SPHINXBUILD) -WT --keep-going -b html $(ALLSPHINXOPTS) build/html $(FILES)
 
 coverage: build version-check
 	mkdir -p build/coverage build/doctrees

@@ -32,10 +32,12 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+import math
 import numpy as np
 
 from scipy.fft import fft, ifft
 from scipy.special import ndtr as phi, ndtri as phinv
+from scipy.special._ufuncs import _bivariate_normal_sf as _bvnu
 from scipy.stats._qmc import primes_from_2_to
 
 from ._qmvnt_cy import _qmvn_inner, _qmvt_inner
@@ -177,6 +179,9 @@ def _qauto(func, covar, low, high, rng, error=1e-3, limit=10_000, **kwds):
     if n == 1:
         prob = phi(high / covar**0.5) - phi(low / covar**0.5)
         # More or less
+        est_error = 1e-15
+    elif n == 2:
+        prob = _bvn(low, high, covar)
         est_error = 1e-15
     else:
         mi = min(limit, n * 1000)
@@ -452,3 +457,41 @@ def _swap_slices(x, slc1, slc2):
     t = x[slc1].copy()
     x[slc1] = x[slc2].copy()
     x[slc2] = t
+
+
+def _bvn(a, b, A):
+    """Bivariate normal integration over box bounds.
+
+    For ``X ~ N(0, A)`` with covariance matrix
+    ``A = [[s1**2, rho*s1*s2], [rho*s1*s2, s2**2]]``, return
+
+        P(a[0] <= X[0] <= b[0], a[1] <= X[1] <= b[1]).
+
+    Parameters
+    ----------
+    a, b : (2,) array_like
+        The low and high integration bounds.
+    A : (2, 2) array_like
+        Covariance matrix.
+
+    Returns
+    -------
+    p : float
+        Probability within the bounds.
+
+    Notes
+    -----
+    Computed via 4-corner inclusion-exclusion on the standardized bivariate normal
+    survival function ``_bvnu`` with correlation ``r = s12 / (s1 * s2)``, where
+    ``s12 = A[0, 1]`` is the covariance between ``X[0]`` and ``X[1]``. The result is
+    clipped to ``[0, 1]``.
+    """
+    s1 = math.sqrt(A[0, 0])
+    s2 = math.sqrt(A[1, 1])
+    s12 = A[0, 1]
+    r = s12 / (s1 * s2)
+    xl, xu = a[0] / s1, b[0] / s1
+    yl, yu = a[1] / s2, b[1] / s2
+    p = _bvnu(xl, yl, r) - _bvnu(xu, yl, r) - _bvnu(xl, yu, r) + _bvnu(xu, yu, r)
+    p = max( 0., min( p, 1. ) )
+    return p

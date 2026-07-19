@@ -2,14 +2,18 @@ __all__ = ['splrep', 'splprep', 'splev', 'splint', 'sproot', 'spalde',
            'bisplrep', 'bisplev', 'insert', 'splder', 'splantider']
 
 
+import warnings
+
 import numpy as np
 
 # These are in the API for fitpack even if not used in fitpack.py itself.
 from ._fitpack_impl import bisplrep, bisplev, dblint  # noqa: F401
 from . import _fitpack_impl as _impl
 from ._bsplines import BSpline
+from scipy._lib._array_api import xp_capabilities
 
 
+@xp_capabilities(out_of_scope=True)
 def splprep(x, w=None, u=None, ub=None, ue=None, k=3, task=0, s=None, t=None,
             full_output=0, nest=None, per=0, quiet=1):
     """
@@ -36,11 +40,9 @@ def splprep(x, w=None, u=None, ub=None, ue=None, k=3, task=0, s=None, t=None,
         An array of parameter values. If not given, these values are
         calculated automatically as ``M = len(x[0])``, where
 
-            v[0] = 0
-
-            v[i] = v[i-1] + distance(`x[i]`, `x[i-1]`)
-
-            u[i] = v[i] / v[M-1]
+        - ``v[0] = 0``
+        - ``v[i] = v[i-1] + distance(`x[i]`, `x[i-1]`)``
+        - ``u[i] = v[i] / v[M-1]``
 
     ub, ue : int, optional
         The end-points of the parameters interval.  Defaults to
@@ -161,6 +163,7 @@ def splprep(x, w=None, u=None, ub=None, ue=None, k=3, task=0, s=None, t=None,
     return res
 
 
+@xp_capabilities(out_of_scope=True)
 def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
            full_output=0, per=0, quiet=1):
     """
@@ -305,6 +308,7 @@ def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
     return res
 
 
+@xp_capabilities(out_of_scope=True)
 def splev(x, tck, der=0, ext=0):
     """
     Evaluate a B-spline or its derivatives.
@@ -395,6 +399,7 @@ def splev(x, tck, der=0, ext=0):
         return _impl.splev(x, tck, der, ext)
 
 
+@xp_capabilities(out_of_scope=True)
 def splint(a, b, tck, full_output=0):
     """
     Evaluate the definite integral of a B-spline between two given points.
@@ -459,12 +464,14 @@ def splint(a, b, tck, full_output=0):
         if full_output != 0:
             mesg = (f"full_output = {full_output} is not supported. Proceeding as if "
                     "full_output = 0")
+            warnings.warn(mesg, RuntimeWarning, stacklevel=2)
 
         return tck.integrate(a, b, extrapolate=False)
     else:
         return _impl.splint(a, b, tck, full_output)
 
 
+@xp_capabilities(out_of_scope=True)
 def sproot(tck, mest=10):
     """
     Find the roots of a cubic B-spline.
@@ -560,6 +567,7 @@ def sproot(tck, mest=10):
         return _impl.sproot(tck, mest)
 
 
+@xp_capabilities(out_of_scope=True)
 def spalde(x, tck):
     """
     Evaluate a B-spline and all its derivatives at one point (or set of points) up
@@ -603,7 +611,7 @@ def spalde(x, tck):
 
     Examples
     --------
-    To calculate the derivatives of a B-spline there are several aproaches. 
+    To calculate the derivatives of a B-spline there are several approaches. 
     In this example, we will demonstrate that `spalde` is equivalent to
     calling `splev` and `splder`.
     
@@ -658,6 +666,7 @@ def spalde(x, tck):
         return _impl.spalde(x, tck)
 
 
+@xp_capabilities(out_of_scope=True)
 def insert(x, tck, m=1, per=0):
     """
     Insert knots into a B-spline.
@@ -673,7 +682,7 @@ def insert(x, tck, m=1, per=0):
 
     Parameters
     ----------
-    x (u) : float
+    x : float
         A knot value at which to insert a new knot.  If `tck` was returned
         from ``splprep``, then the parameter values, u should be given.
     tck : a `BSpline` instance or a tuple
@@ -759,9 +768,10 @@ def insert(x, tck, m=1, per=0):
         return _impl.insert(x, tck, m, per)
 
 
+@xp_capabilities(out_of_scope=True)
 def splder(tck, n=1):
     """
-    Compute the spline representation of the derivative of a given spline
+    Compute the spline representation of the derivative of a given spline.
 
     .. legacy:: function
 
@@ -826,6 +836,7 @@ def splder(tck, n=1):
         return _impl.splder(tck, n)
 
 
+@xp_capabilities(out_of_scope=True)
 def splantider(tck, n=1):
     """
     Compute the spline for the antiderivative (integral) of a given spline.

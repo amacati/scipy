@@ -15,19 +15,19 @@
     .. [3] P. Dierckx, "An algorithm for smoothing, differentiation and integration
          of experimental data using spline functions",
          Journal of Computational and Applied Mathematics, vol. I, no 3, p. 165 (1975).
-         https://doi.org/10.1016/0771-050X(75)90034-0
+         :doi:`10.1016/0771-050X(75)90034-0`.
 """
 import warnings
 import operator
 import numpy as np
 
-from scipy._lib._array_api import array_namespace, concat_1d
+from scipy._lib._array_api import array_namespace, concat_1d, xp_capabilities
 
 from ._bsplines import (
     _not_a_knot, make_interp_spline, BSpline, fpcheck, _lsq_solve_qr,
     _lsq_solve_qr_for_root_rati_periodic, _periodic_knots
 )
-from . import _dierckx      # type: ignore[attr-defined]
+from . import _dierckx
 
 
 #    cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -101,14 +101,24 @@ def _validate_inputs(x, y, w, k, s, xb, xe, parametric, periodic=False):
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
 
+    if not x.flags.c_contiguous:
+        x = x.copy()
+    if not y.flags.c_contiguous:
+        y = y.copy()
+
     if w is None:
         w = np.ones_like(x, dtype=float)
     else:
         w = np.asarray(w, dtype=float)
+        if not w.flags.c_contiguous:
+            w = w.copy()
         if w.ndim != 1:
             raise ValueError(f"{w.ndim = } not implemented yet.")
         if (w < 0).any():
             raise ValueError("Weights must be non-negative")
+        if w.sum() == 0:
+            raise ValueError("All weights are zero.")
+
 
     if y.ndim == 0 or y.ndim > 2:
         raise ValueError(f"{y.ndim = } not supported (must be 1 or 2.)")
@@ -133,6 +143,9 @@ def _validate_inputs(x, y, w, k, s, xb, xe, parametric, periodic=False):
 
     k = operator.index(k)
 
+    if k < 1:
+        raise ValueError(f"k must be >= 1, got k={k}")
+
     if s < 0:
         raise ValueError(f"`s` must be non-negative. Got {s = }")
 
@@ -148,9 +161,10 @@ def _validate_inputs(x, y, w, k, s, xb, xe, parametric, periodic=False):
     return x, y, w, k, s, xb, xe
 
 
+@xp_capabilities(cpu_only=True, jax_jit=False, allow_dask_compute=True)
 def generate_knots(x, y, *, w=None, xb=None, xe=None,
                    k=3, s=0, nest=None, bc_type=None):
-    """Generate knot vectors until the Least SQuares (LSQ) criterion is satified.
+    """Generate knot vectors until the Least SQuares (LSQ) criterion is satisfied.
 
     Parameters
     ----------
@@ -165,7 +179,7 @@ def generate_knots(x, y, *, w=None, xb=None, xe=None,
         The boundary of the approximation interval. If None (default),
         is set to ``x[-1]``.
     k : int, optional
-        The spline degree. Default is cubic, ``k = 3``.
+        The spline degree. Must be >= 1. Default is cubic, ``k = 3``.
     s : float, optional
         The smoothing factor. Default is ``s = 0``.
     nest : int, optional
@@ -469,7 +483,7 @@ def disc(t, k):
            :doi:`10.1016/0146-664X(82)90043-0`
 
     .. [2] Tom Lyche and Knut Morken, Spline methods,
-        http://www.uio.no/studier/emner/matnat/ifi/INF-MAT5340/v05/undervisningsmateriale/
+        https://web.archive.org/web/20221205112612/https://www.uio.no/studier/emner/matnat/ifi/nedlagte-emner/INF-MAT5340/v05/undervisningsmateriale/hele.pdf
 
     """
     n = t.shape[0]
@@ -520,7 +534,7 @@ class F:
     ----------
     [1] P. Dierckx, Algorithms for Smoothing Data with Periodic and Parametric Splines,
         COMPUTER GRAPHICS AND IMAGE PROCESSING vol. 20, pp 171-184 (1982.)
-        https://doi.org/10.1016/0146-664X(82)90043-0
+        :doi:`10.1016/0146-664X(82)90043-0`.
 
     """
     def __init__(self, x, y, t, k, s, w=None, *, R=None, Y=None):
@@ -811,7 +825,7 @@ condition abs(fp-s)/s < tol.
 }
 
 
-def root_rati(f, p0, bracket, acc):
+def root_rati(f, p0, bracket, acc, maxit=MAXIT):
     """Solve `f(p) = 0` using a rational function approximation.
 
     In a nutshell, since the function f(p) is known to be monotonically decreasing, we
@@ -827,7 +841,7 @@ def root_rati(f, p0, bracket, acc):
     https://github.com/scipy/scipy/blob/maintenance/1.11.x/scipy/interpolate/fitpack/fppara.f#L290
 
     Note that the latter is for parametric splines and the former is for 1D spline
-    functions. The minimization is indentical though [modulo a summation over the
+    functions. The minimization is identical though [modulo a summation over the
     dimensions in the computation of f(p)], so we reuse the minimizer for both
     d=1 and d>1.
     """
@@ -844,7 +858,7 @@ def root_rati(f, p0, bracket, acc):
     (p1, f1), (p3, f3)  = bracket
     p = p0
 
-    for it in range(MAXIT):
+    for it in range(maxit):
         p2, f2 = p, f(p)
 
         # c  test whether the approximation sp(x) is an acceptable solution.
@@ -860,7 +874,7 @@ def root_rati(f, p0, bracket, acc):
                 f3 = f2
                 p = p*con4
                 if p <= p1:
-                     p = p1*con9 + p2*con1
+                    p = p1*con9 + p2*con1
                 continue
             else:
                 if f2 < 0:
@@ -873,7 +887,7 @@ def root_rati(f, p0, bracket, acc):
                 f1 = f2
                 p = p/con4
                 if p3 != np.inf and p <= p3:
-                     p = p2*con1 + p3*con9
+                    p = p2*con1 + p3*con9
                 continue
             else:
                 if f2 > 0:
@@ -997,6 +1011,7 @@ def _make_splrep_impl(x, y, w, xb, xe, k, s, t, nest, periodic, xp=np):
     return spl
 
 
+@xp_capabilities(cpu_only=True, jax_jit=False, allow_dask_compute=True)
 def make_splrep(x, y, *, w=None, xb=None, xe=None,
                 k=3, s=0, t=None, nest=None, bc_type=None):
     r"""Create a smoothing B-spline function with bounded error, minimizing derivative jumps.
@@ -1018,9 +1033,10 @@ def make_splrep(x, y, *, w=None, xb=None, xe=None,
         The interval to fit.  If None, these default to ``x[0]`` and ``x[-1]``,
         respectively.
     k : int, optional
-        The degree of the spline fit. It is recommended to use cubic splines,
-        ``k=3``, which is the default. Even values of `k` should be avoided,
-        especially with small `s` values.
+        The degree of the spline fit. Must be >= 1, except when ``s=0``,
+        in which case ``k=0`` is also supported. It is recommended to use
+        cubic splines, ``k=3``, which is the default. Even values of `k` 
+        should be avoided, especially with small `s` values.
     s : float, optional
         The smoothing condition. The amount of smoothness is determined by
         satisfying the LSQ (least-squares) constraint::
@@ -1047,11 +1063,6 @@ def make_splrep(x, y, *, w=None, xb=None, xe=None,
         The actual number of knots returned by this routine may be slightly
         larger than `nest`.
         Default is None (no limit, add up to ``m + k + 1`` knots).
-    periodic : bool, optional
-        If True, data points are considered periodic with period ``x[m-1]`` -
-        ``x[0]`` and a smooth periodic spline approximation is returned. Values of
-        ``y[m-1]`` and ``w[m-1]`` are not used.
-        The default is False, corresponding to boundary condition 'not-a-knot'.
     bc_type : str, optional
         Boundary conditions.
         Default is `"not-a-knot"`.
@@ -1153,6 +1164,7 @@ def make_splrep(x, y, *, w=None, xb=None, xe=None,
     return spl
 
 
+@xp_capabilities(cpu_only=True, jax_jit=False, allow_dask_compute=True)
 def make_splprep(x, *, w=None, u=None, ub=None, ue=None,
                  k=3, s=0, t=None, nest=None, bc_type=None):
     r"""
@@ -1183,9 +1195,11 @@ def make_splprep(x, *, w=None, u=None, ub=None, ue=None,
     ub, ue : float, optional
         The end-points of the parameters interval. Default to ``u[0]`` and ``u[-1]``.
     k : int, optional
-        Degree of the spline. Cubic splines, ``k=3``, are recommended.
-        Even values of `k` should be avoided especially with a small ``s`` value.
-        Default is ``k=3``
+         Degree of the spline. Must be >= 1, except when ``s=0``, in which
+         case ``k=0`` is also supported. Cubic splines, ``k=3``, are
+         recommended. Even values of `k` should be avoided especially with
+         a small ``s`` value. 
+         Default is ``k=3``
     s : float, optional
         A smoothing condition.  The amount of smoothness is determined by
         satisfying the conditions::

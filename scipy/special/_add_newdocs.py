@@ -24,207 +24,9 @@ add_newdoc("_sf_error_test_function",
     """)
 
 
-add_newdoc("_cosine_cdf",
-    """
-    _cosine_cdf(x)
-
-    Cumulative distribution function (CDF) of the cosine distribution::
-
-                 {             0,              x < -pi
-        cdf(x) = { (pi + x + sin(x))/(2*pi),   -pi <= x <= pi
-                 {             1,              x > pi
-
-    Parameters
-    ----------
-    x : array_like
-        `x` must contain real numbers.
-
-    Returns
-    -------
-    scalar or ndarray
-        The cosine distribution CDF evaluated at `x`.
-
-    """)
-
-add_newdoc("_cosine_invcdf",
-    """
-    _cosine_invcdf(p)
-
-    Inverse of the cumulative distribution function (CDF) of the cosine
-    distribution.
-
-    The CDF of the cosine distribution is::
-
-        cdf(x) = (pi + x + sin(x))/(2*pi)
-
-    This function computes the inverse of cdf(x).
-
-    Parameters
-    ----------
-    p : array_like
-        `p` must contain real numbers in the interval ``0 <= p <= 1``.
-        `nan` is returned for values of `p` outside the interval [0, 1].
-
-    Returns
-    -------
-    scalar or ndarray
-        The inverse of the cosine distribution CDF evaluated at `p`.
-
-    """)
-
 add_newdoc("_ellip_harm",
     """
     Internal function, use `ellip_harm` instead.
-    """)
-
-add_newdoc("_ellip_norm",
-    """
-    Internal function, use `ellip_norm` instead.
-    """)
-
-add_newdoc("wrightomega",
-    r"""
-    wrightomega(z, out=None)
-
-    Wright Omega function.
-
-    Defined as the solution to
-
-    .. math::
-
-        \omega + \log(\omega) = z
-
-    where :math:`\log` is the principal branch of the complex logarithm.
-
-    Parameters
-    ----------
-    z : array_like
-        Points at which to evaluate the Wright Omega function
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    omega : scalar or ndarray
-        Values of the Wright Omega function
-
-    See Also
-    --------
-    lambertw : The Lambert W function
-
-    Notes
-    -----
-    .. versionadded:: 0.19.0
-
-    The function can also be defined as
-
-    .. math::
-
-        \omega(z) = W_{K(z)}(e^z)
-
-    where :math:`K(z) = \lceil (\Im(z) - \pi)/(2\pi) \rceil` is the
-    unwinding number and :math:`W` is the Lambert W function.
-
-    The implementation here is taken from [1]_.
-
-    References
-    ----------
-    .. [1] Lawrence, Corless, and Jeffrey, "Algorithm 917: Complex
-           Double-Precision Evaluation of the Wright :math:`\omega`
-           Function." ACM Transactions on Mathematical Software,
-           2012. :doi:`10.1145/2168773.2168779`.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from scipy.special import wrightomega, lambertw
-
-    >>> wrightomega([-2, -1, 0, 1, 2])
-    array([0.12002824, 0.27846454, 0.56714329, 1.        , 1.5571456 ])
-
-    Complex input:
-
-    >>> wrightomega(3 + 5j)
-    (1.5804428632097158+3.8213626783287937j)
-
-    Verify that ``wrightomega(z)`` satisfies ``w + log(w) = z``:
-
-    >>> w = -5 + 4j
-    >>> wrightomega(w + np.log(w))
-    (-5+4j)
-
-    Verify the connection to ``lambertw``:
-
-    >>> z = 0.5 + 3j
-    >>> wrightomega(z)
-    (0.0966015889280649+1.4937828458191993j)
-    >>> lambertw(np.exp(z))
-    (0.09660158892806493+1.4937828458191993j)
-
-    >>> z = 0.5 + 4j
-    >>> wrightomega(z)
-    (-0.3362123489037213+2.282986001579032j)
-    >>> lambertw(np.exp(z), k=1)
-    (-0.33621234890372115+2.282986001579032j)
-    """)
-
-
-add_newdoc("agm",
-    """
-    agm(a, b, out=None)
-
-    Compute the arithmetic-geometric mean of `a` and `b`.
-
-    Start with a_0 = a and b_0 = b and iteratively compute::
-
-        a_{n+1} = (a_n + b_n)/2
-        b_{n+1} = sqrt(a_n*b_n)
-
-    a_n and b_n converge to the same limit as n increases; their common
-    limit is agm(a, b).
-
-    Parameters
-    ----------
-    a, b : array_like
-        Real values only. If the values are both negative, the result
-        is negative. If one value is negative and the other is positive,
-        `nan` is returned.
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    scalar or ndarray
-        The arithmetic-geometric mean of `a` and `b`.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from scipy.special import agm
-    >>> a, b = 24.0, 6.0
-    >>> agm(a, b)
-    13.458171481725614
-
-    Compare that result to the iteration:
-
-    >>> while a != b:
-    ...     a, b = (a + b)/2, np.sqrt(a*b)
-    ...     print("a = %19.16f  b=%19.16f" % (a, b))
-    ...
-    a = 15.0000000000000000  b=12.0000000000000000
-    a = 13.5000000000000000  b=13.4164078649987388
-    a = 13.4582039324993694  b=13.4581390309909850
-    a = 13.4581714817451772  b=13.4581714817060547
-    a = 13.4581714817256159  b=13.4581714817256159
-
-    When array-like arguments are given, broadcasting applies:
-
-    >>> a = np.array([[1.5], [3], [6]])  # a has shape (3, 1).
-    >>> b = np.array([6, 12, 24, 48])    # b has shape (4,).
-    >>> agm(a, b)
-    array([[  3.36454287,   5.42363427,   9.05798751,  15.53650756],
-           [  4.37037309,   6.72908574,  10.84726853,  18.11597502],
-           [  6.        ,   8.74074619,  13.45817148,  21.69453707]])
     """)
 
 add_newdoc("bdtr",
@@ -270,8 +72,37 @@ add_newdoc("bdtr",
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
+           https://netlib.org/cephes/
 
+    Examples
+    --------
+    We have a coin for which the probability of showing heads when flipped
+    is 0.525. The coin is flipped 16 times.  What is the probability that
+    the number of heads is less than or equal to 5?
+
+    Let X be the number of heads.  We want to find the probability that
+    X <= `k`, given `k` is 5, the total number of flips `n` is 16 and
+    the probability `p` of heads for a single flip is 0.525.
+    This is what ``bdtr(k, n, p)`` computes:
+
+    >>> from scipy.special import bdtr
+
+    >>> bdtr(5, 16, 0.525)
+    np.float64(0.07281293895810999)
+
+    The following plot shows the graph of ``bdtr(k, 16, 0.525)``:
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot as plt
+
+    >>> n = 16
+    >>> p = 0.525
+    >>> k = np.arange(n + 1)
+    >>> plt.plot(k, bdtr(k, n, p), 'o')
+    >>> plt.grid(True)
+    >>> plt.xlabel('k')
+    >>> plt.title(f"bdtr(k, {n}, {p})")
+    >>> plt.show()
     """)
 
 add_newdoc("bdtrc",
@@ -322,8 +153,37 @@ add_newdoc("bdtrc",
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
+           https://netlib.org/cephes/
 
+    Examples
+    --------
+    We have a coin for which the probability of showing heads when flipped
+    is 0.525. The coin is flipped 16 times.  What is the probability that
+    the number of heads is greater than 10?
+
+    Let X be the number of heads.  We want to find the probability that
+    X > `k`, given `k` is 10, the total number of flips `n` is 16 and the
+    probability `p` of heads in a single flip is 0.525.  This is what
+    ``bdtrc(k, n, p)`` computes:
+
+    >>> from scipy.special import bdtrc
+
+    >>> bdtrc(10, 16, 0.525)
+    np.float64(0.14643065267555583)
+
+    The following plot shows the graph ``bdtrc(k, 16, 0.525)``:
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot as plt
+
+    >>> n = 16
+    >>> p = 0.525
+    >>> k = np.arange(n + 1)
+    >>> plt.plot(k, bdtrc(k, n, p), 'o')
+    >>> plt.grid(True)
+    >>> plt.xlabel('k')
+    >>> plt.title(f"bdtrc(k, {n}, {p})")
+    >>> plt.show()
     """)
 
 add_newdoc("bdtri",
@@ -370,14 +230,36 @@ add_newdoc("bdtri",
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
+           https://netlib.org/cephes/
+
+    Examples
+    --------
+    An "unfair" coin is to be created that has probability `p` of showing
+    heads when flipped.  What is the value of `p` that will ensure that
+    the probability of getting heads at most once in 4 tosses is 0.5?
+
+    Let X be the number of heads. We want to find `p` such that the probability
+    that X <= `k` is `y`, where `k` is 1, the total number of flips `n` is 4,
+    and the cumulative probability `y` is 0.5. This is what ``bdtri(k, n, y)``
+    computes:
+
+    >>> from scipy.special import bdtri, bdtr
+
+    >>> p = bdtri(1, 4, 0.5)
+    >>> p
+    np.float64(0.3857275681323896)
+
+    Verify the result:
+
+    >>> bdtr(1, 4, p)  # Should be 0.5.
+    np.float64(0.5)
     """)
 
 add_newdoc("bdtrik",
     """
     bdtrik(y, n, p, out=None)
 
-    Inverse function to `bdtr` with respect to `k`.
+    Binomial distribution quantile.
 
     Finds the number of successes `k` such that the sum of the terms 0 through
     `k` of the Binomial probability density for `n` events with probability
@@ -402,31 +284,69 @@ add_newdoc("bdtrik",
 
     See Also
     --------
-    bdtr
+    bdtr : Binomial distribution cumulative distribution function
 
     Notes
     -----
-    Formula 26.5.24 of [1]_ is used to reduce the binomial distribution to the
-    cumulative incomplete beta distribution.
+    Formula 26.5.24 of [1]_ is used to reduce the binomial
+    distribution to the cumulative incomplete beta distribution.
 
-    Computation of `k` involves a search for a value that produces the desired
-    value of `y`. The search relies on the monotonicity of `y` with `k`.
-
-    Wrapper for the CDFLIB [2]_ Fortran routine `cdfbin`.
+    This function uses routines from the Boost.Math C++ library [3]_ which rely
+    on numerical inversion of the binomial distribution CDF [4]_.
 
     References
     ----------
     .. [1] Milton Abramowitz and Irene A. Stegun, eds.
            Handbook of Mathematical Functions with Formulas,
            Graphs, and Mathematical Tables. New York: Dover, 1972.
-    .. [2] Barry Brown, James Lovato, and Kathy Russell,
-           CDFLIB: Library of Fortran Routines for Cumulative Distribution
-           Functions, Inverses, and Other Parameters.
+    .. [2] NIST Digital Library of Mathematical Functions
+           https://dlmf.nist.gov/8.17.5#E5
+    .. [3] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
+    .. [4] https://www.boost.org/doc/libs/latest/libs/math/doc/html/math_toolkit/dist_ref/dists/binomial_dist.html
 
+    Examples
+    --------
+    We have a coin for which the probability of showing heads when flipped
+    is 0.525. The coin is flipped 8 times.  Find the largest value of `k`
+    such that the probability that X <= `k` is not greater than 0.2, where
+    X is the number of heads.
+
+    In fact, there is no integer value of `k` that will give a probability
+    of *exactly* 0.2, as this plot of the cumulative distribution function shows.
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot as plt
+    >>> from scipy.special import bdtr, bdtrik
+
+    >>> n = 8
+    >>> p = 0.525
+    >>> k = np.arange(0, n + 1)
+    >>> plt.plot(k, bdtr(k, n, p), 'o')
+    >>> plt.grid(True, alpha=0.5)
+    >>> plt.xlabel('k')
+    >>> plt.axhline(0.2, linestyle='--', color='k', alpha=0.5)
+    >>> plt.title(f"bdtr(k, {n}, {p})")
+    >>> plt.show()
+
+    From the graph we can see that we would choose `k` = 2.  The function
+    ``bdtrik`` lets us find this value directly.
+
+    ``bdtrik`` returns a floating point value that is like a continuous
+    extension of `k`.  This computes `k` as a noninteger floating point value:
+
+    >>> bdtrik(0.2, n, p)
+    np.float64(2.508332751475262)
+
+    For our final answer we need an integer `k`, and since we want to ensure
+    that the probability at `k` does not exceed 0.2, we truncate the fractional
+    part of this value with ``np.floor``:
+
+    >>> np.floor(bdtrik(0.2, n, p))
+    np.float64(2.0)
     """)
 
 add_newdoc("bdtrin",
-    """
+    r"""
     bdtrin(k, y, p, out=None)
 
     Inverse function to `bdtr` with respect to `n`.
@@ -458,22 +378,35 @@ add_newdoc("bdtrin",
 
     Notes
     -----
-    Formula 26.5.24 of [1]_ is used to reduce the binomial distribution to the
-    cumulative incomplete beta distribution.
-
-    Computation of `n` involves a search for a value that produces the desired
-    value of `y`. The search relies on the monotonicity of `y` with `n`.
-
-    Wrapper for the CDFLIB [2]_ Fortran routine `cdfbin`.
+    This function uses the `find_minimum_number_of_trials` method of the
+    `binomial_distribution` class of the Boost.Math C++ library [1]_.
 
     References
     ----------
-    .. [1] Milton Abramowitz and Irene A. Stegun, eds.
-           Handbook of Mathematical Functions with Formulas,
-           Graphs, and Mathematical Tables. New York: Dover, 1972.
-    .. [2] Barry Brown, James Lovato, and Kathy Russell,
-           CDFLIB: Library of Fortran Routines for Cumulative Distribution
-           Functions, Inverses, and Other Parameters.
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
+
+    Examples
+    --------
+    How often do we have to flip a fair coin to have at least a 90% chance
+    of getting 10 heads? `bdtrin` answers this question:
+
+    >>> import scipy.special as sc
+    >>> k = 10  # number of times we want heads
+    >>> p = 0.5  # probability of flipping heads
+    >>> y = 0.9  # cumulative probability
+    >>> result = sc.bdtrin(k, y, p)
+    >>> result
+    15.90442928275109
+
+    To verify, compute the cumulative probability of getting 10 or fewer
+    successes in 16 trials with probability 0.5 using the binomial
+    distribution from `scipy.stats`. Since `bdtrin` returns a non-integer
+    number of trials, we round up to the next integer:
+
+    >>> from scipy.stats import Binomial
+    >>> Binomial(n=16, p=p).cdf(k)
+    0.8949432373046875
+
     """)
 
 add_newdoc("btdtria",
@@ -614,17 +547,17 @@ add_newdoc(
     Parameters
     ----------
     a, b : array_like
-           Positive, real-valued parameters
+           Positive, real-valued parameters.
     x : array_like
         Real-valued such that :math:`0 \leq x \leq 1`,
-        the upper limit of integration
+        the upper limit of integration.
     out : ndarray, optional
-        Optional output array for the function values
+        Optional output array for the function values.
 
     Returns
     -------
     scalar or ndarray
-        Value of the regularized incomplete beta function
+        Value of the regularized incomplete beta function.
 
     See Also
     --------
@@ -725,17 +658,17 @@ add_newdoc(
     Parameters
     ----------
     a, b : array_like
-           Positive, real-valued parameters
+           Positive, real-valued parameters.
     x : array_like
         Real-valued such that :math:`0 \leq x \leq 1`,
-        the upper limit of integration
+        the upper limit of integration.
     out : ndarray, optional
-        Optional output array for the function values
+        Optional output array for the function values.
 
     Returns
     -------
     scalar or ndarray
-        Value of the regularized incomplete beta function
+        Value of the complement of the regularized incomplete beta function.
 
     See Also
     --------
@@ -916,330 +849,6 @@ add_newdoc(
 
     """)
 
-add_newdoc("boxcox",
-    """
-    boxcox(x, lmbda, out=None)
-
-    Compute the Box-Cox transformation.
-
-    The Box-Cox transformation is::
-
-        y = (x**lmbda - 1) / lmbda  if lmbda != 0
-            log(x)                  if lmbda == 0
-
-    Returns `nan` if ``x < 0``.
-    Returns `-inf` if ``x == 0`` and ``lmbda < 0``.
-
-    Parameters
-    ----------
-    x : array_like
-        Data to be transformed.
-    lmbda : array_like
-        Power parameter of the Box-Cox transform.
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    y : scalar or ndarray
-        Transformed data.
-
-    Notes
-    -----
-
-    .. versionadded:: 0.14.0
-
-    Examples
-    --------
-    >>> from scipy.special import boxcox
-    >>> boxcox([1, 4, 10], 2.5)
-    array([   0.        ,   12.4       ,  126.09110641])
-    >>> boxcox(2, [0, 1, 2])
-    array([ 0.69314718,  1.        ,  1.5       ])
-    """)
-
-add_newdoc("boxcox1p",
-    """
-    boxcox1p(x, lmbda, out=None)
-
-    Compute the Box-Cox transformation of 1 + `x`.
-
-    The Box-Cox transformation computed by `boxcox1p` is::
-
-        y = ((1+x)**lmbda - 1) / lmbda  if lmbda != 0
-            log(1+x)                    if lmbda == 0
-
-    Returns `nan` if ``x < -1``.
-    Returns `-inf` if ``x == -1`` and ``lmbda < 0``.
-
-    Parameters
-    ----------
-    x : array_like
-        Data to be transformed.
-    lmbda : array_like
-        Power parameter of the Box-Cox transform.
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    y : scalar or ndarray
-        Transformed data.
-
-    Notes
-    -----
-
-    .. versionadded:: 0.14.0
-
-    Examples
-    --------
-    >>> from scipy.special import boxcox1p
-    >>> boxcox1p(1e-4, [0, 0.5, 1])
-    array([  9.99950003e-05,   9.99975001e-05,   1.00000000e-04])
-    >>> boxcox1p([0.01, 0.1], 0.25)
-    array([ 0.00996272,  0.09645476])
-    """)
-
-add_newdoc("inv_boxcox",
-    """
-    inv_boxcox(y, lmbda, out=None)
-
-    Compute the inverse of the Box-Cox transformation.
-
-    Find ``x`` such that::
-
-        y = (x**lmbda - 1) / lmbda  if lmbda != 0
-            log(x)                  if lmbda == 0
-
-    Parameters
-    ----------
-    y : array_like
-        Data to be transformed.
-    lmbda : array_like
-        Power parameter of the Box-Cox transform.
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    x : scalar or ndarray
-        Transformed data.
-
-    Notes
-    -----
-
-    .. versionadded:: 0.16.0
-
-    Examples
-    --------
-    >>> from scipy.special import boxcox, inv_boxcox
-    >>> y = boxcox([1, 4, 10], 2.5)
-    >>> inv_boxcox(y, 2.5)
-    array([1., 4., 10.])
-    """)
-
-add_newdoc("inv_boxcox1p",
-    """
-    inv_boxcox1p(y, lmbda, out=None)
-
-    Compute the inverse of the Box-Cox transformation.
-
-    Find ``x`` such that::
-
-        y = ((1+x)**lmbda - 1) / lmbda  if lmbda != 0
-            log(1+x)                    if lmbda == 0
-
-    Parameters
-    ----------
-    y : array_like
-        Data to be transformed.
-    lmbda : array_like
-        Power parameter of the Box-Cox transform.
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    x : scalar or ndarray
-        Transformed data.
-
-    Notes
-    -----
-
-    .. versionadded:: 0.16.0
-
-    Examples
-    --------
-    >>> from scipy.special import boxcox1p, inv_boxcox1p
-    >>> y = boxcox1p([1, 4, 10], 2.5)
-    >>> inv_boxcox1p(y, 2.5)
-    array([1., 4., 10.])
-    """)
-
-add_newdoc("chdtr",
-    r"""
-    chdtr(v, x, out=None)
-
-    Chi square cumulative distribution function.
-
-    Returns the area under the left tail (from 0 to `x`) of the Chi
-    square probability density function with `v` degrees of freedom:
-
-    .. math::
-
-        \frac{1}{2^{v/2} \Gamma(v/2)} \int_0^x t^{v/2 - 1} e^{-t/2} dt
-
-    Here :math:`\Gamma` is the Gamma function; see `gamma`. This
-    integral can be expressed in terms of the regularized lower
-    incomplete gamma function `gammainc` as
-    ``gammainc(v / 2, x / 2)``. [1]_
-
-    Parameters
-    ----------
-    v : array_like
-        Degrees of freedom.
-    x : array_like
-        Upper bound of the integral.
-    out : ndarray, optional
-        Optional output array for the function results.
-
-    Returns
-    -------
-    scalar or ndarray
-        Values of the cumulative distribution function.
-
-    See Also
-    --------
-    chdtrc, chdtri, chdtriv, gammainc
-
-    References
-    ----------
-    .. [1] Chi-Square distribution,
-        https://www.itl.nist.gov/div898/handbook/eda/section3/eda3666.htm
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import scipy.special as sc
-
-    It can be expressed in terms of the regularized lower incomplete
-    gamma function.
-
-    >>> v = 1
-    >>> x = np.arange(4)
-    >>> sc.chdtr(v, x)
-    array([0.        , 0.68268949, 0.84270079, 0.91673548])
-    >>> sc.gammainc(v / 2, x / 2)
-    array([0.        , 0.68268949, 0.84270079, 0.91673548])
-
-    """)
-
-add_newdoc("chdtrc",
-    r"""
-    chdtrc(v, x, out=None)
-
-    Chi square survival function.
-
-    Returns the area under the right hand tail (from `x` to infinity)
-    of the Chi square probability density function with `v` degrees of
-    freedom:
-
-    .. math::
-
-        \frac{1}{2^{v/2} \Gamma(v/2)} \int_x^\infty t^{v/2 - 1} e^{-t/2} dt
-
-    Here :math:`\Gamma` is the Gamma function; see `gamma`. This
-    integral can be expressed in terms of the regularized upper
-    incomplete gamma function `gammaincc` as
-    ``gammaincc(v / 2, x / 2)``. [1]_
-
-    Parameters
-    ----------
-    v : array_like
-        Degrees of freedom.
-    x : array_like
-        Lower bound of the integral.
-    out : ndarray, optional
-        Optional output array for the function results.
-
-    Returns
-    -------
-    scalar or ndarray
-        Values of the survival function.
-
-    See Also
-    --------
-    chdtr, chdtri, chdtriv, gammaincc
-
-    References
-    ----------
-    .. [1] Chi-Square distribution,
-        https://www.itl.nist.gov/div898/handbook/eda/section3/eda3666.htm
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import scipy.special as sc
-
-    It can be expressed in terms of the regularized upper incomplete
-    gamma function.
-
-    >>> v = 1
-    >>> x = np.arange(4)
-    >>> sc.chdtrc(v, x)
-    array([1.        , 0.31731051, 0.15729921, 0.08326452])
-    >>> sc.gammaincc(v / 2, x / 2)
-    array([1.        , 0.31731051, 0.15729921, 0.08326452])
-
-    """)
-
-add_newdoc("chdtri",
-    """
-    chdtri(v, p, out=None)
-
-    Inverse to `chdtrc` with respect to `x`.
-
-    Returns `x` such that ``chdtrc(v, x) == p``.
-
-    Parameters
-    ----------
-    v : array_like
-        Degrees of freedom.
-    p : array_like
-        Probability.
-    out : ndarray, optional
-        Optional output array for the function results.
-
-    Returns
-    -------
-    x : scalar or ndarray
-        Value so that the probability a Chi square random variable
-        with `v` degrees of freedom is greater than `x` equals `p`.
-
-    See Also
-    --------
-    chdtrc, chdtr, chdtriv
-
-    References
-    ----------
-    .. [1] Chi-Square distribution,
-        https://www.itl.nist.gov/div898/handbook/eda/section3/eda3666.htm
-
-    Examples
-    --------
-    >>> import scipy.special as sc
-
-    It inverts `chdtrc`.
-
-    >>> v, p = 1, 0.3
-    >>> sc.chdtrc(v, sc.chdtri(v, p))
-    0.3
-    >>> x = 1
-    >>> sc.chdtri(v, sc.chdtrc(v, x))
-    1.0
-
-    """)
-
 add_newdoc("chdtriv",
     """
     chdtriv(p, x, out=None)
@@ -1287,7 +896,7 @@ add_newdoc("chdtriv",
     >>> sc.chdtr(sc.chdtriv(p, x), x)
     0.5000000000000003
     >>> v = 1
-    >>> sc.chdtriv(sc.chdtr(v, x), v)
+    >>> sc.chdtriv(sc.chdtr(v, x), x)
     1.0
 
     """)
@@ -1296,34 +905,38 @@ add_newdoc("chndtr",
     r"""
     chndtr(x, df, nc, out=None)
 
-    Non-central chi square cumulative distribution function
+    Non-central chi-squared cumulative distribution function.
 
-    The cumulative distribution function is given by:
+    The cumulative distribution function is given by
 
     .. math::
 
-        P(\chi^{\prime 2} \vert \nu, \lambda) =\sum_{j=0}^{\infty}
-        e^{-\lambda /2}
-        \frac{(\lambda /2)^j}{j!} P(\chi^{\prime 2} \vert \nu + 2j),
+        F_{\nu,\lambda}(x)
+        = \sum_{j=0}^{\infty}
+          e^{-\lambda / 2}
+          \frac{(\lambda / 2)^j}{j!}
+          F_{\chi^2_{\nu + 2j}}(x),
 
-    where :math:`\nu > 0` is the degrees of freedom (``df``) and
-    :math:`\lambda \geq 0` is the non-centrality parameter (``nc``).
+    where :math:`\nu > 0` is the degrees of freedom (``df``), :math:`\lambda \geq 0`
+    is the non-centrality parameter (``nc``), and :math:`F_{\chi^2_{\nu + 2j}}` is the
+    CDF of the central chi-squared distribution with :math:`\nu + 2j` degrees of
+    freedom.
 
     Parameters
     ----------
     x : array_like
-        Upper bound of the integral; must satisfy ``x >= 0``
+        Upper bound of the integral; must satisfy ``x >= 0``.
     df : array_like
-        Degrees of freedom; must satisfy ``df > 0``
+        Degrees of freedom; must satisfy ``df > 0``.
     nc : array_like
-        Non-centrality parameter; must satisfy ``nc >= 0``
+        Non-centrality parameter; must satisfy ``nc >= 0``.
     out : ndarray, optional
-        Optional output array for the function results
+        Optional output array for the function results.
 
     Returns
     -------
-    x : scalar or ndarray
-        Value of the non-central chi square cumulative distribution function.
+    cdf : scalar or ndarray
+        Value of the non-central chi-squared cumulative distribution function.
 
     See Also
     --------
@@ -1371,7 +984,7 @@ add_newdoc("chndtrix",
     """
     chndtrix(p, df, nc, out=None)
 
-    Inverse to `chndtr` vs `x`
+    Inverse to `chndtr` vs `x`.
 
     Calculated using a search to find a value for `x` that produces the
     desired value of `p`.
@@ -1431,7 +1044,7 @@ add_newdoc("chndtridf",
     """
     chndtridf(x, p, nc, out=None)
 
-    Inverse to `chndtr` vs `df`
+    Inverse to `chndtr` vs `df`.
 
     Calculated using a search to find a value for `df` that produces the
     desired value of `p`.
@@ -1490,32 +1103,35 @@ add_newdoc("chndtrinc",
     """
     chndtrinc(x, df, p, out=None)
 
-    Inverse to `chndtr` vs `nc`
+    Inverse of `chndtr` with respect to `nc`.
 
-    Calculated using a search to find a value for `df` that produces the
-    desired value of `p`.
+    Finds the non-centrality parameter `nc` such that
+
+    .. math::
+
+        \\operatorname{chndtr}(x, df, nc) = p.
 
     Parameters
     ----------
     x : array_like
-        Upper bound of the integral; must satisfy ``x >= 0``
+        Upper bound of the integral; must satisfy ``x >= 0``.
     df : array_like
-        Degrees of freedom; must satisfy ``df > 0``
+        Degrees of freedom; must satisfy ``df > 0``.
     p : array_like
-        Probability; must satisfy ``0 <= p < 1``
+        Probability; must satisfy ``0 <= p < 1``.
     out : ndarray, optional
-        Optional output array for the function results
+        Optional output array for the function results.
 
     Returns
     -------
     nc : scalar or ndarray
-        Non-centrality
+        Non-centrality parameter.
 
     See Also
     --------
     chndtr : Noncentral chi-squared distribution CDF
-    chndtridf : inverse of `chndtr` with respect to `df`
-    chndtrinc : inverse of `chndtr` with respect to `nc`
+    chndtridf : Inverse of `chndtr` with respect to `df`
+    chndtrinc : Inverse of `chndtr` with respect to `nc`
     scipy.stats.ncx2 : Non-central chi-squared distribution
 
     Notes
@@ -1600,8 +1216,7 @@ add_newdoc(
            https://dlmf.nist.gov/19.16.E6
     .. [2] B. C. Carlson, "Numerical computation of real or complex elliptic
            integrals," Numer. Algorithm, vol. 10, no. 1, pp. 13-26, 1995.
-           https://arxiv.org/abs/math/9409227
-           https://doi.org/10.1007/BF02198293
+           :doi:`10.1007/BF02198293`. https://arxiv.org/abs/math/9409227
 
     Examples
     --------
@@ -1716,8 +1331,7 @@ add_newdoc(
            https://dlmf.nist.gov/19.16.E5
     .. [2] B. C. Carlson, "Numerical computation of real or complex elliptic
            integrals," Numer. Algorithm, vol. 10, no. 1, pp. 13-26, 1995.
-           https://arxiv.org/abs/math/9409227
-           https://doi.org/10.1007/BF02198293
+           :doi:`10.1007/BF02198293`. https://arxiv.org/abs/math/9409227
 
     Examples
     --------
@@ -1808,8 +1422,7 @@ add_newdoc(
            https://dlmf.nist.gov/19.16.E1
     .. [2] B. C. Carlson, "Numerical computation of real or complex elliptic
            integrals," Numer. Algorithm, vol. 10, no. 1, pp. 13-26, 1995.
-           https://arxiv.org/abs/math/9409227
-           https://doi.org/10.1007/BF02198293
+           :doi:`10.1007/BF02198293`. https://arxiv.org/abs/math/9409227
 
     Examples
     --------
@@ -1907,8 +1520,7 @@ add_newdoc(
     ----------
     .. [1] B. C. Carlson, "Numerical computation of real or complex elliptic
            integrals," Numer. Algorithm, vol. 10, no. 1, pp. 13-26, 1995.
-           https://arxiv.org/abs/math/9409227
-           https://doi.org/10.1007/BF02198293
+           :doi:`10.1007/BF02198293`. https://arxiv.org/abs/math/9409227
     .. [2] B. C. Carlson, ed., Chapter 19 in "Digital Library of Mathematical
            Functions," NIST, US Dept. of Commerce.
            https://dlmf.nist.gov/19.16.E1
@@ -2032,27 +1644,24 @@ add_newdoc(
     ----------
     .. [1] B. C. Carlson, "Numerical computation of real or complex elliptic
            integrals," Numer. Algorithm, vol. 10, no. 1, pp. 13-26, 1995.
-           https://arxiv.org/abs/math/9409227
-           https://doi.org/10.1007/BF02198293
+           :doi:`10.1007/BF02198293`. https://arxiv.org/abs/math/9409227
     .. [2] B. C. Carlson, ed., Chapter 19 in "Digital Library of Mathematical
            Functions," NIST, US Dept. of Commerce.
            https://dlmf.nist.gov/19.20.iii
     .. [3] B. C. Carlson, J. FitzSimmons, "Reduction Theorems for Elliptic
            Integrands with the Square Root of Two Quadratic Factors," J.
            Comput. Appl. Math., vol. 118, nos. 1-2, pp. 71-85, 2000.
-           https://doi.org/10.1016/S0377-0427(00)00282-X
+           :doi:`10.1016/S0377-0427(00)00282-X`.
     .. [4] F. Johansson, "Numerical Evaluation of Elliptic Functions, Elliptic
            Integrals and Modular Forms," in J. Blumlein, C. Schneider, P.
            Paule, eds., "Elliptic Integrals, Elliptic Functions and Modular
            Forms in Quantum Field Theory," pp. 269-293, 2019 (Cham,
-           Switzerland: Springer Nature Switzerland)
-           https://arxiv.org/abs/1806.06725
-           https://doi.org/10.1007/978-3-030-04480-0
+           Switzerland: Springer Nature Switzerland).
+           :doi:`10.1007/978-3-030-04480-0`. https://arxiv.org/abs/1806.06725
     .. [5] B. C. Carlson, J. L. Gustafson, "Asymptotic Approximations for
            Symmetric Elliptic Integrals," SIAM J. Math. Anls., vol. 25, no. 2,
-           pp. 288-303, 1994.
+           pp. 288-303, 1994. :doi:`10.1137/S0036141092228477`.
            https://arxiv.org/abs/math/9310223
-           https://doi.org/10.1137/S0036141092228477
 
     Examples
     --------
@@ -2088,55 +1697,6 @@ add_newdoc(
 
     >>> np.power(x, -1.5)
     (-0.03986825876151894-0.14051741840449583j)
-
-    """)
-
-add_newdoc("entr",
-    r"""
-    entr(x, out=None)
-
-    Elementwise function for computing entropy.
-
-    .. math:: \text{entr}(x) = \begin{cases} - x \log(x) & x > 0  \\ 0 & x = 0
-              \\ -\infty & \text{otherwise} \end{cases}
-
-    Parameters
-    ----------
-    x : ndarray
-        Input array.
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    res : scalar or ndarray
-        The value of the elementwise entropy function at the given points `x`.
-
-    See Also
-    --------
-    kl_div, rel_entr, scipy.stats.entropy
-
-    Notes
-    -----
-    .. versionadded:: 0.15.0
-
-    This function is concave.
-
-    The origin of this function is in convex programming; see [1]_.
-    Given a probability distribution :math:`p_1, \ldots, p_n`,
-    the definition of entropy in the context of *information theory* is
-
-    .. math::
-
-        \sum_{i = 1}^n \mathrm{entr}(p_i).
-
-    To compute the latter quantity, use `scipy.stats.entropy`.
-
-    References
-    ----------
-    .. [1] Boyd, Stephen and Lieven Vandenberghe. *Convex optimization*.
-           Cambridge University Press, 2004.
-           :doi:`https://doi.org/10.1017/CBO9780511804441`
 
     """)
 
@@ -2213,67 +1773,6 @@ add_newdoc(
 
     """)
 
-add_newdoc(
-    "erfcinv",
-    """
-    erfcinv(y, out=None)
-
-    Inverse of the complementary error function.
-
-    Computes the inverse of the complementary error function.
-
-    In the complex domain, there is no unique complex number w satisfying
-    erfc(w)=z. This indicates a true inverse function would be multivalued.
-    When the domain restricts to the real, 0 < x < 2, there is a unique real
-    number satisfying erfc(erfcinv(x)) = erfcinv(erfc(x)).
-
-    It is related to inverse of the error function by erfcinv(1-x) = erfinv(x)
-
-    Parameters
-    ----------
-    y : ndarray
-        Argument at which to evaluate. Domain: [0, 2]
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    erfcinv : scalar or ndarray
-        The inverse of erfc of y, element-wise
-
-    See Also
-    --------
-    erf : Error function of a complex argument
-    erfc : Complementary error function, ``1 - erf(x)``
-    erfinv : Inverse of the error function
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import matplotlib.pyplot as plt
-    >>> from scipy.special import erfcinv
-
-    >>> erfcinv(0.5)
-    0.4769362762044699
-
-    >>> y = np.linspace(0.0, 2.0, num=11)
-    >>> erfcinv(y)
-    array([        inf,  0.9061938 ,  0.59511608,  0.37080716,  0.17914345,
-           -0.        , -0.17914345, -0.37080716, -0.59511608, -0.9061938 ,
-                  -inf])
-
-    Plot the function:
-
-    >>> y = np.linspace(0, 2, 200)
-    >>> fig, ax = plt.subplots()
-    >>> ax.plot(y, erfcinv(y))
-    >>> ax.grid(True)
-    >>> ax.set_xlabel('y')
-    >>> ax.set_title('erfcinv(y)')
-    >>> plt.show()
-
-    """)
-
 add_newdoc("eval_jacobi",
     r"""
     eval_jacobi(n, alpha, beta, x, out=None)
@@ -2286,11 +1785,11 @@ add_newdoc("eval_jacobi",
     .. math::
 
         P_n^{(\alpha, \beta)}(x) = \frac{(\alpha + 1)_n}{\Gamma(n + 1)}
-          {}_2F_1(-n, 1 + \alpha + \beta + n; \alpha + 1; (1 - z)/2)
+          {}_2F_1(-n, 1 + \alpha + \beta + n; \alpha + 1; (1 - x)/2)
 
     where :math:`(\cdot)_n` is the Pochhammer symbol; see `poch`. When
     :math:`n` is an integer the result is a polynomial of degree
-    :math:`n`. See 22.5.42 in [AS]_ for details.
+    :math:`n`. See 22.5.42 in [AS]_ or [DLMF]_ for details.
 
     Parameters
     ----------
@@ -2299,18 +1798,18 @@ add_newdoc("eval_jacobi",
         determined via the relation to the Gauss hypergeometric
         function.
     alpha : array_like
-        Parameter
+        Parameter.
     beta : array_like
-        Parameter
+        Parameter.
     x : array_like
-        Points at which to evaluate the polynomial
+        Points at which to evaluate the polynomial.
     out : ndarray, optional
-        Optional output array for the function values
+        Optional output array for the function values.
 
     Returns
     -------
     P : scalar or ndarray
-        Values of the Jacobi polynomial
+        Values of the Jacobi polynomial.
 
     See Also
     --------
@@ -2323,6 +1822,8 @@ add_newdoc("eval_jacobi",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.E7
 
     """)
 
@@ -2339,8 +1840,8 @@ add_newdoc("eval_sh_jacobi",
         G_n^{(p, q)}(x)
           = \binom{2n + p - 1}{n}^{-1} P_n^{(p - q, q - 1)}(2x - 1),
 
-    where :math:`P_n^{(\cdot, \cdot)}` is the n-th Jacobi
-    polynomial. See 22.5.2 in [AS]_ for details.
+    where :math:`P_n^{(\cdot, \cdot)}` is the n-th Jacobi polynomial.
+    See 22.5.2 in [AS]_ (or equivalently [DLMF]_)  for details.
 
     Parameters
     ----------
@@ -2371,6 +1872,8 @@ add_newdoc("eval_sh_jacobi",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.1.E2
 
     """)
 
@@ -2378,18 +1881,19 @@ add_newdoc("eval_gegenbauer",
     r"""
     eval_gegenbauer(n, alpha, x, out=None)
 
-    Evaluate Gegenbauer polynomial at a point.
+    Evaluate Gegenbauer (ultraspherical) polynomial at a point.
 
     The Gegenbauer polynomials can be defined via the Gauss
     hypergeometric function :math:`{}_2F_1` as
 
     .. math::
 
-        C_n^{(\alpha)} = \frac{(2\alpha)_n}{\Gamma(n + 1)}
-          {}_2F_1(-n, 2\alpha + n; \alpha + 1/2; (1 - z)/2).
+        C_n^{(\alpha)}(x) = \frac{(2\alpha)_n}{\Gamma(n + 1)}
+          {}_2F_1(-n, 2\alpha + n; \alpha + 1/2; (1 - x)/2).
 
-    When :math:`n` is an integer the result is a polynomial of degree
-    :math:`n`. See 22.5.46 in [AS]_ for details.
+    where :math:`(\cdot)_n` is the Pochhammer symbol; see `poch`. When
+    :math:`n` is an integer the result is a polynomial of degree
+    :math:`n`. See 22.5.46 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2398,16 +1902,16 @@ add_newdoc("eval_gegenbauer",
         determined via the relation to the Gauss hypergeometric
         function.
     alpha : array_like
-        Parameter
+        Parameter.
     x : array_like
-        Points at which to evaluate the Gegenbauer polynomial
+        Points at which to evaluate the Gegenbauer polynomial.
     out : ndarray, optional
-        Optional output array for the function values
+        Optional output array for the function values.
 
     Returns
     -------
     C : scalar or ndarray
-        Values of the Gegenbauer polynomial
+        Values of the Gegenbauer polynomial.
 
     See Also
     --------
@@ -2421,6 +1925,8 @@ add_newdoc("eval_gegenbauer",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.E9
 
     """)
 
@@ -2438,7 +1944,7 @@ add_newdoc("eval_chebyt",
         T_n(x) = {}_2F_1(n, -n; 1/2; (1 - x)/2).
 
     When :math:`n` is an integer the result is a polynomial of degree
-    :math:`n`. See 22.5.47 in [AS]_ for details.
+    :math:`n`. See 22.5.47 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2475,6 +1981,8 @@ add_newdoc("eval_chebyt",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.E11_2
 
     """)
 
@@ -2492,7 +2000,7 @@ add_newdoc("eval_chebyu",
         U_n(x) = (n + 1) {}_2F_1(-n, n + 2; 3/2; (1 - x)/2).
 
     When :math:`n` is an integer the result is a polynomial of degree
-    :math:`n`. See 22.5.48 in [AS]_ for details.
+    :math:`n`. See 22.5.48 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2523,6 +2031,8 @@ add_newdoc("eval_chebyu",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.E11_4
 
     """)
 
@@ -2539,8 +2049,8 @@ add_newdoc("eval_chebys",
 
         S_n(x) = U_n(x/2)
 
-    where :math:`U_n` is a Chebyshev polynomial of the second
-    kind. See 22.5.13 in [AS]_ for details.
+    where :math:`U_n` is a Chebyshev polynomial of the second kind.
+    See 22.5.13 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2569,6 +2079,8 @@ add_newdoc("eval_chebys",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.1.E3
 
     Examples
     --------
@@ -2600,7 +2112,7 @@ add_newdoc("eval_chebyc",
         C_n(x) = 2 T_n(x/2)
 
     where :math:`T_n` is a Chebyshev polynomial of the first kind. See
-    22.5.11 in [AS]_ for details.
+    22.5.11 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2630,6 +2142,8 @@ add_newdoc("eval_chebyc",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.1.E3
 
     Examples
     --------
@@ -2661,7 +2175,7 @@ add_newdoc("eval_sh_chebyt",
         T_n^*(x) = T_n(2x - 1)
 
     where :math:`T_n` is a Chebyshev polynomial of the first kind. See
-    22.5.14 in [AS]_ for details.
+    22.5.14 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2691,6 +2205,8 @@ add_newdoc("eval_sh_chebyt",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.7.E7
 
     """)
 
@@ -2708,7 +2224,7 @@ add_newdoc("eval_sh_chebyu",
         U_n^*(x) = U_n(2x - 1)
 
     where :math:`U_n` is a Chebyshev polynomial of the first kind. See
-    22.5.15 in [AS]_ for details.
+    22.5.15 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2737,6 +2253,8 @@ add_newdoc("eval_sh_chebyu",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.7.E8
 
     """)
 
@@ -2754,7 +2272,7 @@ add_newdoc("eval_legendre",
         P_n(x) = {}_2F_1(-n, n + 1; 1; (1 - x)/2).
 
     When :math:`n` is an integer the result is a polynomial of degree
-    :math:`n`. See 22.5.49 in [AS]_ for details.
+    :math:`n`. See 22.5.49 in [AS]_ (or equivalently [DLMF]_) for details.
 
     Parameters
     ----------
@@ -2785,6 +2303,8 @@ add_newdoc("eval_legendre",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/15.9.E7
 
     Examples
     --------
@@ -2838,7 +2358,7 @@ add_newdoc("eval_sh_legendre",
         P_n^*(x) = P_n(2x - 1)
 
     where :math:`P_n` is a Legendre polynomial. See 2.2.11 in [AS]_
-    for details.
+    or [DLMF]_ for details.
 
     Parameters
     ----------
@@ -2868,6 +2388,8 @@ add_newdoc("eval_sh_legendre",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.7.E10
 
     """)
 
@@ -2886,7 +2408,7 @@ add_newdoc("eval_genlaguerre",
           {}_1F_1(-n, \alpha + 1, x).
 
     When :math:`n` is an integer the result is a polynomial of degree
-    :math:`n`. See 22.5.54 in [AS]_ for details. The Laguerre
+    :math:`n`. See 22.5.54 in [AS]_ or [DLMF]_ for details. The Laguerre
     polynomials are the special case where :math:`\alpha = 0`.
 
     Parameters
@@ -2921,6 +2443,8 @@ add_newdoc("eval_genlaguerre",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.E12
 
     """)
 
@@ -2937,8 +2461,9 @@ add_newdoc("eval_laguerre",
 
         L_n(x) = {}_1F_1(-n, 1, x).
 
-    See 22.5.16 and 22.5.54 in [AS]_ for details. When :math:`n` is an
-    integer the result is a polynomial of degree :math:`n`.
+    See 22.5.16 and 22.5.54 in [AS]_ (or equivalently [DLMF1]_ and [DLMF2]_)
+    for details. When :math:`n` is an integer the result is a polynomial
+    of degree :math:`n`.
 
     Parameters
     ----------
@@ -2969,6 +2494,10 @@ add_newdoc("eval_laguerre",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF1] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.1#I1.ix7.p1
+    .. [DLMF2] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.E12
 
      """)
 
@@ -2985,7 +2514,7 @@ add_newdoc("eval_hermite",
         H_n(x) = (-1)^n e^{x^2} \frac{d^n}{dx^n} e^{-x^2};
 
     :math:`H_n` is a polynomial of degree :math:`n`. See 22.11.7 in
-    [AS]_ for details.
+    [AS]_ or [DLMF]_ for details.
 
     Parameters
     ----------
@@ -3014,6 +2543,8 @@ add_newdoc("eval_hermite",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.T1
 
     """)
 
@@ -3031,7 +2562,7 @@ add_newdoc("eval_hermitenorm",
         He_n(x) = (-1)^n e^{x^2/2} \frac{d^n}{dx^n} e^{-x^2/2};
 
     :math:`He_n` is a polynomial of degree :math:`n`. See 22.11.8 in
-    [AS]_ for details.
+    [AS]_ or [DLMF]_ for details.
 
     Parameters
     ----------
@@ -3060,6 +2591,8 @@ add_newdoc("eval_hermitenorm",
     .. [AS] Milton Abramowitz and Irene A. Stegun, eds.
         Handbook of Mathematical Functions with Formulas,
         Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [DLMF] NIST Digital Library of Mathematical Functions,
+        https://dlmf.nist.gov/18.5.T1
 
     """)
 
@@ -3070,7 +2603,7 @@ add_newdoc("expn",
     Generalized exponential integral En.
 
     For integer :math:`n \geq 0` and real :math:`x \geq 0` the
-    generalized exponential integral is defined as [dlmf]_
+    generalized exponential integral is defined as [DLMF]_
 
     .. math::
 
@@ -3097,7 +2630,7 @@ add_newdoc("expn",
 
     References
     ----------
-    .. [dlmf] Digital Library of Mathematical Functions, 8.19.2
+    .. [DLMF] Digital Library of Mathematical Functions, 8.19.2
               https://dlmf.nist.gov/8.19#E2
 
     Examples
@@ -3449,7 +2982,7 @@ add_newdoc("fdtridfd",
     """
     fdtridfd(dfn, p, x, out=None)
 
-    Inverse to `fdtr` vs dfd
+    Inverse to `fdtr` vs dfd.
 
     Finds the F density argument dfd such that ``fdtr(dfn, dfd, x) == p``.
 
@@ -3531,636 +3064,6 @@ add_newdoc(
     """)
 '''
 
-add_newdoc("gdtr",
-    r"""
-    gdtr(a, b, x, out=None)
-
-    Gamma distribution cumulative distribution function.
-
-    Returns the integral from zero to `x` of the gamma probability density
-    function,
-
-    .. math::
-
-        F = \int_0^x \frac{a^b}{\Gamma(b)} t^{b-1} e^{-at}\,dt,
-
-    where :math:`\Gamma` is the gamma function.
-
-    Parameters
-    ----------
-    a : array_like
-        The rate parameter of the gamma distribution, sometimes denoted
-        :math:`\beta` (float).  It is also the reciprocal of the scale
-        parameter :math:`\theta`.
-    b : array_like
-        The shape parameter of the gamma distribution, sometimes denoted
-        :math:`\alpha` (float).
-    x : array_like
-        The quantile (upper limit of integration; float).
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    F : scalar or ndarray
-        The CDF of the gamma distribution with parameters `a` and `b`
-        evaluated at `x`.
-
-    See Also
-    --------
-    gdtrc : 1 - CDF of the gamma distribution.
-    scipy.stats.gamma: Gamma distribution
-
-    Notes
-    -----
-    The evaluation is carried out using the relation to the incomplete gamma
-    integral (regularized gamma function).
-
-    Wrapper for the Cephes [1]_ routine `gdtr`. Calling `gdtr` directly can
-    improve performance compared to the ``cdf`` method of `scipy.stats.gamma`
-    (see last example below).
-
-    References
-    ----------
-    .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
-
-    Examples
-    --------
-    Compute the function for ``a=1``, ``b=2`` at ``x=5``.
-
-    >>> import numpy as np
-    >>> from scipy.special import gdtr
-    >>> import matplotlib.pyplot as plt
-    >>> gdtr(1., 2., 5.)
-    0.9595723180054873
-
-    Compute the function for ``a=1`` and ``b=2`` at several points by
-    providing a NumPy array for `x`.
-
-    >>> xvalues = np.array([1., 2., 3., 4])
-    >>> gdtr(1., 1., xvalues)
-    array([0.63212056, 0.86466472, 0.95021293, 0.98168436])
-
-    `gdtr` can evaluate different parameter sets by providing arrays with
-    broadcasting compatible shapes for `a`, `b` and `x`. Here we compute the
-    function for three different `a` at four positions `x` and ``b=3``,
-    resulting in a 3x4 array.
-
-    >>> a = np.array([[0.5], [1.5], [2.5]])
-    >>> x = np.array([1., 2., 3., 4])
-    >>> a.shape, x.shape
-    ((3, 1), (4,))
-
-    >>> gdtr(a, 3., x)
-    array([[0.01438768, 0.0803014 , 0.19115317, 0.32332358],
-           [0.19115317, 0.57680992, 0.82642193, 0.9380312 ],
-           [0.45618688, 0.87534798, 0.97974328, 0.9972306 ]])
-
-    Plot the function for four different parameter sets.
-
-    >>> a_parameters = [0.3, 1, 2, 6]
-    >>> b_parameters = [2, 10, 15, 20]
-    >>> linestyles = ['solid', 'dashed', 'dotted', 'dashdot']
-    >>> parameters_list = list(zip(a_parameters, b_parameters, linestyles))
-    >>> x = np.linspace(0, 30, 1000)
-    >>> fig, ax = plt.subplots()
-    >>> for parameter_set in parameters_list:
-    ...     a, b, style = parameter_set
-    ...     gdtr_vals = gdtr(a, b, x)
-    ...     ax.plot(x, gdtr_vals, label=fr"$a= {a},\, b={b}$", ls=style)
-    >>> ax.legend()
-    >>> ax.set_xlabel("$x$")
-    >>> ax.set_title("Gamma distribution cumulative distribution function")
-    >>> plt.show()
-
-    The gamma distribution is also available as `scipy.stats.gamma`. Using
-    `gdtr` directly can be much faster than calling the ``cdf`` method of
-    `scipy.stats.gamma`, especially for small arrays or individual values.
-    To get the same results one must use the following parametrization:
-    ``stats.gamma(b, scale=1/a).cdf(x)=gdtr(a, b, x)``.
-
-    >>> from scipy.stats import gamma
-    >>> a = 2.
-    >>> b = 3
-    >>> x = 1.
-    >>> gdtr_result = gdtr(a, b, x)  # this will often be faster than below
-    >>> gamma_dist_result = gamma(b, scale=1/a).cdf(x)
-    >>> gdtr_result == gamma_dist_result  # test that results are equal
-    True
-    """)
-
-add_newdoc("gdtrc",
-    r"""
-    gdtrc(a, b, x, out=None)
-
-    Gamma distribution survival function.
-
-    Integral from `x` to infinity of the gamma probability density function,
-
-    .. math::
-
-        F = \int_x^\infty \frac{a^b}{\Gamma(b)} t^{b-1} e^{-at}\,dt,
-
-    where :math:`\Gamma` is the gamma function.
-
-    Parameters
-    ----------
-    a : array_like
-        The rate parameter of the gamma distribution, sometimes denoted
-        :math:`\beta` (float). It is also the reciprocal of the scale
-        parameter :math:`\theta`.
-    b : array_like
-        The shape parameter of the gamma distribution, sometimes denoted
-        :math:`\alpha` (float).
-    x : array_like
-        The quantile (lower limit of integration; float).
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    F : scalar or ndarray
-        The survival function of the gamma distribution with parameters `a`
-        and `b` evaluated at `x`.
-
-    See Also
-    --------
-    gdtr: Gamma distribution cumulative distribution function
-    scipy.stats.gamma: Gamma distribution
-    gdtrix
-
-    Notes
-    -----
-    The evaluation is carried out using the relation to the incomplete gamma
-    integral (regularized gamma function).
-
-    Wrapper for the Cephes [1]_ routine `gdtrc`. Calling `gdtrc` directly can
-    improve performance compared to the ``sf`` method of `scipy.stats.gamma`
-    (see last example below).
-
-    References
-    ----------
-    .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
-
-    Examples
-    --------
-    Compute the function for ``a=1`` and ``b=2`` at ``x=5``.
-
-    >>> import numpy as np
-    >>> from scipy.special import gdtrc
-    >>> import matplotlib.pyplot as plt
-    >>> gdtrc(1., 2., 5.)
-    0.04042768199451279
-
-    Compute the function for ``a=1``, ``b=2`` at several points by providing
-    a NumPy array for `x`.
-
-    >>> xvalues = np.array([1., 2., 3., 4])
-    >>> gdtrc(1., 1., xvalues)
-    array([0.36787944, 0.13533528, 0.04978707, 0.01831564])
-
-    `gdtrc` can evaluate different parameter sets by providing arrays with
-    broadcasting compatible shapes for `a`, `b` and `x`. Here we compute the
-    function for three different `a` at four positions `x` and ``b=3``,
-    resulting in a 3x4 array.
-
-    >>> a = np.array([[0.5], [1.5], [2.5]])
-    >>> x = np.array([1., 2., 3., 4])
-    >>> a.shape, x.shape
-    ((3, 1), (4,))
-
-    >>> gdtrc(a, 3., x)
-    array([[0.98561232, 0.9196986 , 0.80884683, 0.67667642],
-           [0.80884683, 0.42319008, 0.17357807, 0.0619688 ],
-           [0.54381312, 0.12465202, 0.02025672, 0.0027694 ]])
-
-    Plot the function for four different parameter sets.
-
-    >>> a_parameters = [0.3, 1, 2, 6]
-    >>> b_parameters = [2, 10, 15, 20]
-    >>> linestyles = ['solid', 'dashed', 'dotted', 'dashdot']
-    >>> parameters_list = list(zip(a_parameters, b_parameters, linestyles))
-    >>> x = np.linspace(0, 30, 1000)
-    >>> fig, ax = plt.subplots()
-    >>> for parameter_set in parameters_list:
-    ...     a, b, style = parameter_set
-    ...     gdtrc_vals = gdtrc(a, b, x)
-    ...     ax.plot(x, gdtrc_vals, label=fr"$a= {a},\, b={b}$", ls=style)
-    >>> ax.legend()
-    >>> ax.set_xlabel("$x$")
-    >>> ax.set_title("Gamma distribution survival function")
-    >>> plt.show()
-
-    The gamma distribution is also available as `scipy.stats.gamma`.
-    Using `gdtrc` directly can be much faster than calling the ``sf`` method
-    of `scipy.stats.gamma`, especially for small arrays or individual
-    values. To get the same results one must use the following parametrization:
-    ``stats.gamma(b, scale=1/a).sf(x)=gdtrc(a, b, x)``.
-
-    >>> from scipy.stats import gamma
-    >>> a = 2
-    >>> b = 3
-    >>> x = 1.
-    >>> gdtrc_result = gdtrc(a, b, x)  # this will often be faster than below
-    >>> gamma_dist_result = gamma(b, scale=1/a).sf(x)
-    >>> gdtrc_result == gamma_dist_result  # test that results are equal
-    True
-    """)
-
-add_newdoc("gdtria",
-    """
-    gdtria(p, b, x, out=None)
-
-    Inverse of `gdtr` vs a.
-
-    Returns the inverse with respect to the parameter `a` of ``p =
-    gdtr(a, b, x)``, the cumulative distribution function of the gamma
-    distribution.
-
-    Parameters
-    ----------
-    p : array_like
-        Probability values.
-    b : array_like
-        `b` parameter values of `gdtr(a, b, x)`. `b` is the "shape" parameter
-        of the gamma distribution.
-    x : array_like
-        Nonnegative real values, from the domain of the gamma distribution.
-    out : ndarray, optional
-        If a fourth argument is given, it must be a numpy.ndarray whose size
-        matches the broadcast result of `a`, `b` and `x`.  `out` is then the
-        array returned by the function.
-
-    Returns
-    -------
-    a : scalar or ndarray
-        Values of the `a` parameter such that ``p = gdtr(a, b, x)`.  ``1/a``
-        is the "scale" parameter of the gamma distribution.
-
-    See Also
-    --------
-    gdtr : CDF of the gamma distribution.
-    gdtrib : Inverse with respect to `b` of `gdtr(a, b, x)`.
-    gdtrix : Inverse with respect to `x` of `gdtr(a, b, x)`.
-
-    Notes
-    -----
-    Wrapper for the CDFLIB [1]_ Fortran routine `cdfgam`.
-
-    The cumulative distribution function `p` is computed using a routine by
-    DiDinato and Morris [2]_. Computation of `a` involves a search for a value
-    that produces the desired value of `p`. The search relies on the
-    monotonicity of `p` with `a`.
-
-    References
-    ----------
-    .. [1] Barry Brown, James Lovato, and Kathy Russell,
-           CDFLIB: Library of Fortran Routines for Cumulative Distribution
-           Functions, Inverses, and Other Parameters.
-    .. [2] DiDinato, A. R. and Morris, A. H.,
-           Computation of the incomplete gamma function ratios and their
-           inverse.  ACM Trans. Math. Softw. 12 (1986), 377-393.
-
-    Examples
-    --------
-    First evaluate `gdtr`.
-
-    >>> from scipy.special import gdtr, gdtria
-    >>> p = gdtr(1.2, 3.4, 5.6)
-    >>> print(p)
-    0.94378087442
-
-    Verify the inverse.
-
-    >>> gdtria(p, 3.4, 5.6)
-    1.2
-    """)
-
-add_newdoc("gdtrib",
-    """
-    gdtrib(a, p, x, out=None)
-
-    Inverse of `gdtr` vs b.
-
-    Returns the inverse with respect to the parameter `b` of ``p =
-    gdtr(a, b, x)``, the cumulative distribution function of the gamma
-    distribution.
-
-    Parameters
-    ----------
-    a : array_like
-        `a` parameter values of ``gdtr(a, b, x)`. ``1/a`` is the "scale"
-        parameter of the gamma distribution.
-    p : array_like
-        Probability values.
-    x : array_like
-        Nonnegative real values, from the domain of the gamma distribution.
-    out : ndarray, optional
-        If a fourth argument is given, it must be a numpy.ndarray whose size
-        matches the broadcast result of `a`, `b` and `x`.  `out` is then the
-        array returned by the function.
-
-    Returns
-    -------
-    b : scalar or ndarray
-        Values of the `b` parameter such that `p = gdtr(a, b, x)`.  `b` is
-        the "shape" parameter of the gamma distribution.
-
-    See Also
-    --------
-    gdtr : CDF of the gamma distribution.
-    gdtria : Inverse with respect to `a` of `gdtr(a, b, x)`.
-    gdtrix : Inverse with respect to `x` of `gdtr(a, b, x)`.
-
-    Notes
-    -----
-
-    The cumulative distribution function `p` is computed using the Cephes [1]_
-    routines `igam` and `igamc`. Computation of `b` involves a search for a value
-    that produces the desired value of `p` using Chandrupatla's bracketing
-    root finding algorithm [2]_.
-
-    Note that there are some edge cases where `gdtrib` is extended by taking
-    limits where they are uniquely defined. In particular
-    ``x == 0`` with ``p > 0`` and ``p == 0`` with ``x > 0``.
-    For these edge cases, a numerical result will be returned for
-    ``gdtrib(a, p, x)`` even though ``gdtr(a, gdtrib(a, p, x), x)`` is
-    undefined.
-
-    References
-    ----------
-    .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
-    .. [2] Chandrupatla, Tirupathi R.
-           "A new hybrid quadratic/bisection algorithm for finding the zero of a
-           nonlinear function without using derivatives".
-           Advances in Engineering Software, 28(3), 145-149.
-           https://doi.org/10.1016/s0965-9978(96)00051-8
-
-    Examples
-    --------
-    First evaluate `gdtr`.
-
-    >>> from scipy.special import gdtr, gdtrib
-    >>> p = gdtr(1.2, 3.4, 5.6)
-    >>> print(p)
-    0.94378087442
-
-    Verify the inverse.
-
-    >>> gdtrib(1.2, p, 5.6)
-    3.3999999999999995
-    """)
-
-add_newdoc("gdtrix",
-    """
-    gdtrix(a, b, p, out=None)
-
-    Inverse of `gdtr` vs x.
-
-    Returns the inverse with respect to the parameter `x` of ``p =
-    gdtr(a, b, x)``, the cumulative distribution function of the gamma
-    distribution. This is also known as the pth quantile of the
-    distribution.
-
-    Parameters
-    ----------
-    a : array_like
-        `a` parameter values of ``gdtr(a, b, x)``. ``1/a`` is the "scale"
-        parameter of the gamma distribution.
-    b : array_like
-        `b` parameter values of ``gdtr(a, b, x)``. `b` is the "shape" parameter
-        of the gamma distribution.
-    p : array_like
-        Probability values.
-    out : ndarray, optional
-        If a fourth argument is given, it must be a numpy.ndarray whose size
-        matches the broadcast result of `a`, `b` and `x`. `out` is then the
-        array returned by the function.
-
-    Returns
-    -------
-    x : scalar or ndarray
-        Values of the `x` parameter such that `p = gdtr(a, b, x)`.
-
-    See Also
-    --------
-    gdtr : CDF of the gamma distribution.
-    gdtria : Inverse with respect to `a` of ``gdtr(a, b, x)``.
-    gdtrib : Inverse with respect to `b` of ``gdtr(a, b, x)``.
-
-    Notes
-    -----
-    Wrapper for the CDFLIB [1]_ Fortran routine `cdfgam`.
-
-    The cumulative distribution function `p` is computed using a routine by
-    DiDinato and Morris [2]_. Computation of `x` involves a search for a value
-    that produces the desired value of `p`. The search relies on the
-    monotonicity of `p` with `x`.
-
-    References
-    ----------
-    .. [1] Barry Brown, James Lovato, and Kathy Russell,
-           CDFLIB: Library of Fortran Routines for Cumulative Distribution
-           Functions, Inverses, and Other Parameters.
-    .. [2] DiDinato, A. R. and Morris, A. H.,
-           Computation of the incomplete gamma function ratios and their
-           inverse.  ACM Trans. Math. Softw. 12 (1986), 377-393.
-
-    Examples
-    --------
-    First evaluate `gdtr`.
-
-    >>> from scipy.special import gdtr, gdtrix
-    >>> p = gdtr(1.2, 3.4, 5.6)
-    >>> print(p)
-    0.94378087442
-
-    Verify the inverse.
-
-    >>> gdtrix(1.2, 3.4, p)
-    5.5999999999999996
-    """)
-
-
-
-add_newdoc("huber",
-    r"""
-    huber(delta, r, out=None)
-
-    Huber loss function.
-
-    .. math:: \text{huber}(\delta, r) = \begin{cases} \infty & \delta < 0  \\
-              \frac{1}{2}r^2 & 0 \le \delta, | r | \le \delta \\
-              \delta ( |r| - \frac{1}{2}\delta ) & \text{otherwise} \end{cases}
-
-    Parameters
-    ----------
-    delta : ndarray
-        Input array, indicating the quadratic vs. linear loss changepoint.
-    r : ndarray
-        Input array, possibly representing residuals.
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    scalar or ndarray
-        The computed Huber loss function values.
-
-    See Also
-    --------
-    pseudo_huber : smooth approximation of this function
-
-    Notes
-    -----
-    `huber` is useful as a loss function in robust statistics or machine
-    learning to reduce the influence of outliers as compared to the common
-    squared error loss, residuals with a magnitude higher than `delta` are
-    not squared [1]_.
-
-    Typically, `r` represents residuals, the difference
-    between a model prediction and data. Then, for :math:`|r|\leq\delta`,
-    `huber` resembles the squared error and for :math:`|r|>\delta` the
-    absolute error. This way, the Huber loss often achieves
-    a fast convergence in model fitting for small residuals like the squared
-    error loss function and still reduces the influence of outliers
-    (:math:`|r|>\delta`) like the absolute error loss. As :math:`\delta` is
-    the cutoff between squared and absolute error regimes, it has
-    to be tuned carefully for each problem. `huber` is also
-    convex, making it suitable for gradient based optimization.
-
-    .. versionadded:: 0.15.0
-
-    References
-    ----------
-    .. [1] Peter Huber. "Robust Estimation of a Location Parameter",
-           1964. Annals of Statistics. 53 (1): 73 - 101.
-
-    Examples
-    --------
-    Import all necessary modules.
-
-    >>> import numpy as np
-    >>> from scipy.special import huber
-    >>> import matplotlib.pyplot as plt
-
-    Compute the function for ``delta=1`` at ``r=2``
-
-    >>> huber(1., 2.)
-    1.5
-
-    Compute the function for different `delta` by providing a NumPy array or
-    list for `delta`.
-
-    >>> huber([1., 3., 5.], 4.)
-    array([3.5, 7.5, 8. ])
-
-    Compute the function at different points by providing a NumPy array or
-    list for `r`.
-
-    >>> huber(2., np.array([1., 1.5, 3.]))
-    array([0.5  , 1.125, 4.   ])
-
-    The function can be calculated for different `delta` and `r` by
-    providing arrays for both with compatible shapes for broadcasting.
-
-    >>> r = np.array([1., 2.5, 8., 10.])
-    >>> deltas = np.array([[1.], [5.], [9.]])
-    >>> print(r.shape, deltas.shape)
-    (4,) (3, 1)
-
-    >>> huber(deltas, r)
-    array([[ 0.5  ,  2.   ,  7.5  ,  9.5  ],
-           [ 0.5  ,  3.125, 27.5  , 37.5  ],
-           [ 0.5  ,  3.125, 32.   , 49.5  ]])
-
-    Plot the function for different `delta`.
-
-    >>> x = np.linspace(-4, 4, 500)
-    >>> deltas = [1, 2, 3]
-    >>> linestyles = ["dashed", "dotted", "dashdot"]
-    >>> fig, ax = plt.subplots()
-    >>> combined_plot_parameters = list(zip(deltas, linestyles))
-    >>> for delta, style in combined_plot_parameters:
-    ...     ax.plot(x, huber(delta, x), label=fr"$\delta={delta}$", ls=style)
-    >>> ax.legend(loc="upper center")
-    >>> ax.set_xlabel("$x$")
-    >>> ax.set_title(r"Huber loss function $h_{\delta}(x)$")
-    >>> ax.set_xlim(-4, 4)
-    >>> ax.set_ylim(0, 8)
-    >>> plt.show()
-    """)
-
-add_newdoc("hyp0f1",
-    r"""
-    hyp0f1(v, z, out=None)
-
-    Confluent hypergeometric limit function 0F1.
-
-    Parameters
-    ----------
-    v : array_like
-        Real-valued parameter
-    z : array_like
-        Real- or complex-valued argument
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        The confluent hypergeometric limit function
-
-    Notes
-    -----
-    This function is defined as:
-
-    .. math:: _0F_1(v, z) = \sum_{k=0}^{\infty}\frac{z^k}{(v)_k k!}.
-
-    It's also the limit as :math:`q \to \infty` of :math:`_1F_1(q; v; z/q)`,
-    and satisfies the differential equation :math:`f''(z) + vf'(z) =
-    f(z)`. See [1]_ for more information.
-
-    References
-    ----------
-    .. [1] Wolfram MathWorld, "Confluent Hypergeometric Limit Function",
-           http://mathworld.wolfram.com/ConfluentHypergeometricLimitFunction.html
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import scipy.special as sc
-
-    It is one when `z` is zero.
-
-    >>> sc.hyp0f1(1, 0)
-    1.0
-
-    It is the limit of the confluent hypergeometric function as `q`
-    goes to infinity.
-
-    >>> q = np.array([1, 10, 100, 1000])
-    >>> v = 1
-    >>> z = 1
-    >>> sc.hyp1f1(q, v, z / q)
-    array([2.71828183, 2.31481985, 2.28303778, 2.27992985])
-    >>> sc.hyp0f1(v, z)
-    2.2795853023360673
-
-    It is related to Bessel functions.
-
-    >>> n = 1
-    >>> x = np.linspace(0, 1, 5)
-    >>> sc.jv(n, x)
-    array([0.        , 0.12402598, 0.24226846, 0.3492436 , 0.44005059])
-    >>> (0.5 * x)**n / sc.factorial(n) * sc.hyp0f1(n + 1, -0.25 * x**2)
-    array([0.        , 0.12402598, 0.24226846, 0.3492436 , 0.44005059])
-
-    """)
-
 add_newdoc("hyp1f1",
     r"""
     hyp1f1(a, b, x, out=None)
@@ -4173,7 +3076,7 @@ add_newdoc("hyp1f1",
 
        {}_1F_1(a; b; x) = \sum_{k = 0}^\infty \frac{(a)_k}{(b)_k k!} x^k.
 
-    See [dlmf]_ for more details. Here :math:`(\cdot)_k` is the
+    See [DLMF]_ for more details. Here :math:`(\cdot)_k` is the
     Pochhammer symbol; see `poch`.
 
     Parameters
@@ -4204,11 +3107,10 @@ add_newdoc("hyp1f1",
 
     References
     ----------
-    .. [dlmf] NIST Digital Library of Mathematical Functions
+    .. [DLMF] NIST Digital Library of Mathematical Functions
               https://dlmf.nist.gov/13.2#E2
     .. [2] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
-    .. [3] Zhang, Jin, "Computation of Special Functions", John Wiley
-           and Sons, Inc, 1996.
+    .. [3] S. Zhang and J.M. Jin, "Computation of Special Functions", Wiley 1996.
 
     Examples
     --------
@@ -4242,133 +3144,11 @@ add_newdoc("hyp1f1",
 
     """)
 
-add_newdoc("hyperu",
-    r"""
-    hyperu(a, b, x, out=None)
-
-    Confluent hypergeometric function U
-
-    It is defined as the solution to the equation
-
-    .. math::
-
-       x \frac{d^2w}{dx^2} + (b - x) \frac{dw}{dx} - aw = 0
-
-    which satisfies the property
-
-    .. math::
-
-       U(a, b, x) \sim x^{-a}
-
-    as :math:`x \to \infty`. See [dlmf]_ for more details.
-
-    Parameters
-    ----------
-    a, b : array_like
-        Real-valued parameters
-    x : array_like
-        Real-valued argument
-    out : ndarray, optional
-        Optional output array for the function values
-
-    Returns
-    -------
-    scalar or ndarray
-        Values of `U`
-
-    References
-    ----------
-    .. [dlmf] NIST Digital Library of Mathematics Functions
-              https://dlmf.nist.gov/13.2#E6
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import scipy.special as sc
-
-    It has a branch cut along the negative `x` axis.
-
-    >>> x = np.linspace(-0.1, -10, 5)
-    >>> sc.hyperu(1, 1, x)
-    array([nan, nan, nan, nan, nan])
-
-    It approaches zero as `x` goes to infinity.
-
-    >>> x = np.array([1, 10, 100])
-    >>> sc.hyperu(1, 1, x)
-    array([0.59634736, 0.09156333, 0.00990194])
-
-    It satisfies Kummer's transformation.
-
-    >>> a, b, x = 2, 1, 1
-    >>> sc.hyperu(a, b, x)
-    0.1926947246463881
-    >>> x**(1 - b) * sc.hyperu(a - b + 1, 2 - b, x)
-    0.1926947246463881
-
-    """)
-
-add_newdoc("_igam_fac",
-    """
-    Internal function, do not use.
-    """)
-
-add_newdoc("kl_div",
-    r"""
-    kl_div(x, y, out=None)
-
-    Elementwise function for computing Kullback-Leibler divergence.
-
-    .. math::
-
-        \mathrm{kl\_div}(x, y) =
-          \begin{cases}
-            x \log(x / y) - x + y & x > 0, y > 0 \\
-            y & x = 0, y \ge 0 \\
-            \infty & \text{otherwise}
-          \end{cases}
-
-    Parameters
-    ----------
-    x, y : array_like
-        Real arguments
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        Values of the Kullback-Liebler divergence.
-
-    See Also
-    --------
-    entr, rel_entr, scipy.stats.entropy
-
-    Notes
-    -----
-    .. versionadded:: 0.15.0
-
-    This function is non-negative and is jointly convex in `x` and `y`.
-
-    The origin of this function is in convex programming; see [1]_ for
-    details. This is why the function contains the extra :math:`-x
-    + y` terms over what might be expected from the Kullback-Leibler
-    divergence. For a version of the function without the extra terms,
-    see `rel_entr`.
-
-    References
-    ----------
-    .. [1] Boyd, Stephen and Lieven Vandenberghe. *Convex optimization*.
-           Cambridge University Press, 2004.
-           :doi:`https://doi.org/10.1017/CBO9780511804441`
-
-    """)
-
 add_newdoc("kn",
     r"""
     kn(n, x, out=None)
 
-    Modified Bessel function of the second kind of integer order `n`
+    Modified Bessel function of the second kind of integer order `n`.
 
     Returns the modified Bessel function of the second kind for integer order
     `n` at real `z`.
@@ -4405,10 +3185,10 @@ add_newdoc("kn",
     ----------
     .. [1] Donald E. Amos, "AMOS, A Portable Package for Bessel Functions
            of a Complex Argument and Nonnegative Order",
-           http://netlib.org/amos/
+           https://netlib.org/amos/
     .. [2] Donald E. Amos, "Algorithm 644: A portable package for Bessel
            functions of a complex argument and nonnegative order", ACM
-           TOMS Vol. 12 Issue 3, Sept. 1986, p. 265
+           TOMS Vol. 12 Issue 3, Sept. 1986, p. 265.
 
     Examples
     --------
@@ -4429,166 +3209,6 @@ add_newdoc("kn",
 
     >>> kn([4, 5, 6], 1)
     array([   44.23241585,   360.9605896 ,  3653.83831186])
-    """)
-
-add_newdoc("kolmogi",
-    """
-    kolmogi(p, out=None)
-
-    Inverse Survival Function of Kolmogorov distribution
-
-    It is the inverse function to `kolmogorov`.
-    Returns y such that ``kolmogorov(y) == p``.
-
-    Parameters
-    ----------
-    p : float array_like
-        Probability
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        The value(s) of kolmogi(p)
-
-    See Also
-    --------
-    kolmogorov : The Survival Function for the distribution
-    scipy.stats.kstwobign : Provides the functionality as a continuous distribution
-    smirnov, smirnovi : Functions for the one-sided distribution
-
-    Notes
-    -----
-    `kolmogorov` is used by `stats.kstest` in the application of the
-    Kolmogorov-Smirnov Goodness of Fit test. For historical reasons this
-    function is exposed in `scpy.special`, but the recommended way to achieve
-    the most accurate CDF/SF/PDF/PPF/ISF computations is to use the
-    `stats.kstwobign` distribution.
-
-    Examples
-    --------
-    >>> from scipy.special import kolmogi
-    >>> kolmogi([0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0])
-    array([        inf,  1.22384787,  1.01918472,  0.82757356,  0.67644769,
-            0.57117327,  0.        ])
-
-    """)
-
-add_newdoc("kolmogorov",
-    r"""
-    kolmogorov(y, out=None)
-
-    Complementary cumulative distribution (Survival Function) function of
-    Kolmogorov distribution.
-
-    Returns the complementary cumulative distribution function of
-    Kolmogorov's limiting distribution (``D_n*\sqrt(n)`` as n goes to infinity)
-    of a two-sided test for equality between an empirical and a theoretical
-    distribution. It is equal to the (limit as n->infinity of the)
-    probability that ``sqrt(n) * max absolute deviation > y``.
-
-    Parameters
-    ----------
-    y : float array_like
-      Absolute deviation between the Empirical CDF (ECDF) and the target CDF,
-      multiplied by sqrt(n).
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        The value(s) of kolmogorov(y)
-
-    See Also
-    --------
-    kolmogi : The Inverse Survival Function for the distribution
-    scipy.stats.kstwobign : Provides the functionality as a continuous distribution
-    smirnov, smirnovi : Functions for the one-sided distribution
-
-    Notes
-    -----
-    `kolmogorov` is used by `stats.kstest` in the application of the
-    Kolmogorov-Smirnov Goodness of Fit test. For historical reasons this
-    function is exposed in `scpy.special`, but the recommended way to achieve
-    the most accurate CDF/SF/PDF/PPF/ISF computations is to use the
-    `stats.kstwobign` distribution.
-
-    Examples
-    --------
-    Show the probability of a gap at least as big as 0, 0.5 and 1.0.
-
-    >>> import numpy as np
-    >>> from scipy.special import kolmogorov
-    >>> from scipy.stats import kstwobign
-    >>> kolmogorov([0, 0.5, 1.0])
-    array([ 1.        ,  0.96394524,  0.26999967])
-
-    Compare a sample of size 1000 drawn from a Laplace(0, 1) distribution against
-    the target distribution, a Normal(0, 1) distribution.
-
-    >>> from scipy.stats import norm, laplace
-    >>> rng = np.random.default_rng()
-    >>> n = 1000
-    >>> lap01 = laplace(0, 1)
-    >>> x = np.sort(lap01.rvs(n, random_state=rng))
-    >>> np.mean(x), np.std(x)
-    (-0.05841730131499543, 1.3968109101997568)
-
-    Construct the Empirical CDF and the K-S statistic Dn.
-
-    >>> target = norm(0,1)  # Normal mean 0, stddev 1
-    >>> cdfs = target.cdf(x)
-    >>> ecdfs = np.arange(n+1, dtype=float)/n
-    >>> gaps = np.column_stack([cdfs - ecdfs[:n], ecdfs[1:] - cdfs])
-    >>> Dn = np.max(gaps)
-    >>> Kn = np.sqrt(n) * Dn
-    >>> print('Dn=%f, sqrt(n)*Dn=%f' % (Dn, Kn))
-    Dn=0.043363, sqrt(n)*Dn=1.371265
-    >>> print(chr(10).join(['For a sample of size n drawn from a N(0, 1) distribution:',
-    ...   ' the approximate Kolmogorov probability that sqrt(n)*Dn>=%f is %f' %
-    ...    (Kn, kolmogorov(Kn)),
-    ...   ' the approximate Kolmogorov probability that sqrt(n)*Dn<=%f is %f' %
-    ...    (Kn, kstwobign.cdf(Kn))]))
-    For a sample of size n drawn from a N(0, 1) distribution:
-     the approximate Kolmogorov probability that sqrt(n)*Dn>=1.371265 is 0.046533
-     the approximate Kolmogorov probability that sqrt(n)*Dn<=1.371265 is 0.953467
-
-    Plot the Empirical CDF against the target N(0, 1) CDF.
-
-    >>> import matplotlib.pyplot as plt
-    >>> plt.step(np.concatenate([[-3], x]), ecdfs, where='post', label='Empirical CDF')
-    >>> x3 = np.linspace(-3, 3, 100)
-    >>> plt.plot(x3, target.cdf(x3), label='CDF for N(0, 1)')
-    >>> plt.ylim([0, 1]); plt.grid(True); plt.legend();
-    >>> # Add vertical lines marking Dn+ and Dn-
-    >>> iminus, iplus = np.argmax(gaps, axis=0)
-    >>> plt.vlines([x[iminus]], ecdfs[iminus], cdfs[iminus],
-    ...            color='r', linestyle='dashed', lw=4)
-    >>> plt.vlines([x[iplus]], cdfs[iplus], ecdfs[iplus+1],
-    ...            color='r', linestyle='dashed', lw=4)
-    >>> plt.show()
-    """)
-
-add_newdoc("_kolmogc",
-    r"""
-    Internal function, do not use.
-    """)
-
-add_newdoc("_kolmogci",
-    r"""
-    Internal function, do not use.
-    """)
-
-add_newdoc("_kolmogp",
-    r"""
-    Internal function, do not use.
-    """)
-
-add_newdoc("_lanczos_sum_expg_scaled",
-    """
-    Internal function, do not use.
     """)
 
 add_newdoc(
@@ -4696,58 +3316,126 @@ add_newdoc(
     scalar or ndarray
     """)
 
-add_newdoc("_lgam1p",
-    """
-    Internal function, do not use.
-    """)
-
-add_newdoc("lpmv",
+add_newdoc("log_gammainc",
     r"""
-    lpmv(m, v, x, out=None)
+    log_gammainc(a, x, out=None)
 
-    Associated Legendre function of integer order and real degree.
+    Logarithm of the regularized lower incomplete gamma function.
 
     Defined as
 
     .. math::
 
-        P_v^m = (-1)^m (1 - x^2)^{m/2} \frac{d^m}{dx^m} P_v(x)
+        \log P(a, x) = \log \frac{1}{\Gamma(a)} \int_0^x t^{a-1} e^{-t} dt
 
-    where
-
-    .. math::
-
-        P_v = \sum_{k = 0}^\infty \frac{(-v)_k (v + 1)_k}{(k!)^2}
-                \left(\frac{1 - x}{2}\right)^k
-
-    is the Legendre function of the first kind. Here :math:`(\cdot)_k`
-    is the Pochhammer symbol; see `poch`.
+    for :math:`a > 0` and :math:`x \geq 0`. This function is more accurate
+    than computing ``log(gammainc(a, x))`` directly.
 
     Parameters
     ----------
-    m : array_like
-        Order (int or float). If passed a float not equal to an
-        integer the function returns NaN.
-    v : array_like
-        Degree (float).
+    a : array_like
+        Positive real parameter.
     x : array_like
-        Argument (float). Must have ``|x| <= 1``.
+        Nonneg real argument.
     out : ndarray, optional
-        Optional output array for the function results
+        Optional output array for the function values.
 
     Returns
     -------
-    pmv : scalar or ndarray
-        Value of the associated Legendre function.
+    scalar or ndarray
+        Values of the log of the regularized lower incomplete gamma function.
+
+    See Also
+    --------
+    gammainc : regularized lower incomplete gamma function
+    gammaincc : regularized upper incomplete gamma function
+    log_gammaincc : log of the regularized upper incomplete gamma function
 
     Notes
     -----
-    Note that this implementation includes the Condon-Shortley phase.
+    This function wraps the ``lgamma_p`` routine from the
+    Boost Math C++ library [1]_.
 
     References
     ----------
-    .. [1] Zhang, Jin, "Computation of Special Functions", John Wiley
-           and Sons, Inc, 1996.
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
+
+    Examples
+    --------
+    This function is useful when the naive computation ``log(gammainc(a, x))``
+    underflows for small values.
+
+    >>> import numpy as np
+    >>> from scipy.special import log_gammainc, gammainc
+
+    >>> with np.errstate(divide='ignore'):
+    ...    print(np.log(gammainc(500, 30)))
+    -inf
+
+    >>> log_gammainc(500, 30)
+    -940.6700276993504
+
+    """)
+
+add_newdoc("log_gammaincc",
+    r"""
+    log_gammaincc(a, x, out=None)
+
+    Logarithm of the regularized upper incomplete gamma function.
+
+    Defined as
+
+    .. math::
+
+        \log Q(a, x) = \log \frac{1}{\Gamma(a)} \int_x^{\infty} t^{a-1} e^{-t} dt
+
+    for :math:`a > 0` and :math:`x \geq 0`. This function is more accurate
+    than computing ``log(gammaincc(a, x))`` directly when the survival
+    function value is very small.
+
+    Parameters
+    ----------
+    a : array_like
+        Positive real parameter.
+    x : array_like
+        Nonnegative real argument.
+    out : ndarray, optional
+        Optional output array for the function values.
+
+    Returns
+    -------
+    scalar or ndarray
+        Values of the log of the regularized upper incomplete gamma function.
+
+    See Also
+    --------
+    gammainc : regularized lower incomplete gamma function
+    gammaincc : regularized upper incomplete gamma function
+    log_gammainc : log of the regularized lower incomplete gamma function
+
+    Notes
+    -----
+    This function wraps the ``lgamma_q`` routine from the
+    Boost Math C++ library [1]_.
+
+    References
+    ----------
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scipy.special import log_gammaincc, gammaincc
+
+    For very small survival function values, ``log(gammaincc(a, x))``
+    underflows to ``-inf`` while ``log_gammaincc`` retains precision:
+
+    >>> with np.errstate(divide='ignore'):
+    ...     print(np.log(gammaincc(10, 1000.0)))
+    -inf
+
+    >>> log_gammaincc(10, 1000.0)
+    -950.622998370156
 
     """)
 
@@ -4762,7 +3450,7 @@ add_newdoc("nbdtr",
 
     .. math::
 
-        F = \sum_{j=0}^k {{n + j - 1}\choose{j}} p^n (1 - p)^j.
+        F(k) = \sum_{j=0}^k {{n + j - 1}\choose{j}} p^n (1 - p)^j.
 
     In a sequence of Bernoulli trials with individual success probabilities
     `p`, this is the probability that `k` or fewer failures precede the nth
@@ -4781,7 +3469,7 @@ add_newdoc("nbdtr",
 
     Returns
     -------
-    F : scalar or ndarray
+    scalar or ndarray
         The probability of `k` or fewer failures before `n` successes in a
         sequence of events with individual success probability `p`.
 
@@ -4811,7 +3499,7 @@ add_newdoc("nbdtr",
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
+           https://netlib.org/cephes/
 
     Examples
     --------
@@ -4888,7 +3576,7 @@ add_newdoc("nbdtrc",
 
     .. math::
 
-        F = \sum_{j=k + 1}^\infty {{n + j - 1}\choose{j}} p^n (1 - p)^j.
+        S(k) = \sum_{j=k + 1}^\infty {{n + j - 1}\choose{j}} p^n (1 - p)^j.
 
     In a sequence of Bernoulli trials with individual success probabilities
     `p`, this is the probability that more than `k` failures precede the nth
@@ -4907,7 +3595,7 @@ add_newdoc("nbdtrc",
 
     Returns
     -------
-    F : scalar or ndarray
+    scalar or ndarray
         The probability of `k + 1` or more failures before `n` successes in a
         sequence of events with individual success probability `p`.
 
@@ -4937,7 +3625,7 @@ add_newdoc("nbdtrc",
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
+           https://netlib.org/cephes/
 
     Examples
     --------
@@ -5049,7 +3737,7 @@ add_newdoc(
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
+           https://netlib.org/cephes/
 
     Examples
     --------
@@ -5059,8 +3747,8 @@ add_newdoc(
 
     >>> import numpy as np
     >>> from scipy.special import nbdtri, nbdtr
-    >>> k, n, y = 5, 10, 0.2
-    >>> cdf_val = nbdtr(k, n, y)
+    >>> k, n, p = 5, 10, 0.2
+    >>> cdf_val = nbdtr(k, n, p)
     >>> nbdtri(k, n, cdf_val)
     0.20000000000000004
 
@@ -5144,28 +3832,11 @@ add_newdoc("nbdtrik",
 
     Notes
     -----
-    Wrapper for the CDFLIB [1]_ Fortran routine `cdfnbn`.
-
-    Formula 26.5.26 of [2]_,
-
-    .. math::
-        \sum_{j=k + 1}^\infty {{n + j - 1}
-        \choose{j}} p^n (1 - p)^j = I_{1 - p}(k + 1, n),
-
-    is used to reduce calculation of the cumulative distribution function to
-    that of a regularized incomplete beta :math:`I`.
-
-    Computation of `k` involves a search for a value that produces the desired
-    value of `y`.  The search relies on the monotonicity of `y` with `k`.
+    This function wraps routines from the Boost Math C++ library [1]_.
 
     References
     ----------
-    .. [1] Barry Brown, James Lovato, and Kathy Russell,
-           CDFLIB: Library of Fortran Routines for Cumulative Distribution
-           Functions, Inverses, and Other Parameters.
-    .. [2] Milton Abramowitz and Irene A. Stegun, eds.
-           Handbook of Mathematical Functions with Formulas,
-           Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
 
     Examples
     --------
@@ -5249,9 +3920,9 @@ add_newdoc("nbdtrin",
 
     Notes
     -----
-    Wrapper for the CDFLIB [1]_ Fortran routine `cdfnbn`.
+    This function wraps routines from the Boost Math C++ library [1]_.
 
-    Formula 26.5.26 of [2]_,
+    Formula 26.5.26 of [2]_ or [3]_,
 
     .. math::
         \sum_{j=k + 1}^\infty {{n + j - 1}
@@ -5265,12 +3936,12 @@ add_newdoc("nbdtrin",
 
     References
     ----------
-    .. [1] Barry Brown, James Lovato, and Kathy Russell,
-           CDFLIB: Library of Fortran Routines for Cumulative Distribution
-           Functions, Inverses, and Other Parameters.
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
     .. [2] Milton Abramowitz and Irene A. Stegun, eds.
            Handbook of Mathematical Functions with Formulas,
            Graphs, and Mathematical Tables. New York: Dover, 1972.
+    .. [3] NIST Digital Library of Mathematical Functions
+           https://dlmf.nist.gov/8.17.E24
 
     Examples
     --------
@@ -5287,7 +3958,7 @@ add_newdoc("nbdtrin",
     point accuracy.
 
     >>> nbdtrin(k, cdf_value, p)
-    1.999999999998137
+    2.0
     """)
 
 add_newdoc("ncfdtr",
@@ -5604,6 +4275,16 @@ add_newdoc("ncfdtrinc",
     ncfdtridfd : Inverse of `ncfdtr` with respect to `dfd`.
     ncfdtridfn : Inverse of `ncfdtr` with respect to `dfn`.
 
+    Notes
+    -----
+    This function calculates the non-centrality parameter of the
+    non-central F distribution given a probability, quantile, and degrees
+    of freedom using the Boost Math C++ library [1]_.
+
+    References
+    ----------
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
+
     Examples
     --------
     >>> from scipy.special import ncfdtr, ncfdtrinc
@@ -5718,6 +4399,16 @@ add_newdoc("nctdtridf",
     nctdtrit : Inverse CDF (iCDF) of the non-central t distribution.
     nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.
 
+    Notes
+    -----
+    This function calculates the degrees of freedom of the non-central t
+    distribution given a probability, quantile and non-centrality parameter
+    using the Boost Math C++ library [1]_.
+
+    References
+    ----------
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
+
     Examples
     --------
     >>> from scipy.special import nctdtr, nctdtridf
@@ -5765,6 +4456,16 @@ add_newdoc("nctdtrinc",
     nctdtr :  CDF of the non-central `t` distribution.
     nctdtrit : Inverse CDF (iCDF) of the non-central t distribution.
     nctdtridf : Calculate degrees of freedom, given CDF and iCDF values.
+
+    Notes
+    -----
+    This function calculates the non-centrality parameter of the
+    non-central t distribution given a probability, quantile and
+    degrees of freedom using the Boost Math C++ library [1]_.
+
+    References
+    ----------
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
 
     Examples
     --------
@@ -5845,304 +4546,36 @@ add_newdoc("nctdtrit",
 
     """)
 
-add_newdoc("nrdtrimn",
-    """
-    nrdtrimn(p, std, x, out=None)
-
-    Calculate mean of normal distribution given other params.
-
-    Parameters
-    ----------
-    p : array_like
-        CDF values, in range (0, 1].
-    std : array_like
-        Standard deviation.
-    x : array_like
-        Quantiles, i.e. the upper limit of integration.
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    mn : scalar or ndarray
-        The mean of the normal distribution.
-
-    See Also
-    --------
-    scipy.stats.norm : Normal distribution
-    ndtr : Standard normal cumulative probability distribution
-    ndtri : Inverse of standard normal CDF with respect to quantile
-    nrdtrisd : Inverse of normal distribution CDF with respect to
-               standard deviation
-
-    Examples
-    --------
-    `nrdtrimn` can be used to recover the mean of a normal distribution
-    if we know the CDF value `p` for a given quantile `x` and the
-    standard deviation `std`. First, we calculate
-    the normal distribution CDF for an exemplary parameter set.
-
-    >>> from scipy.stats import norm
-    >>> mean = 3.
-    >>> std = 2.
-    >>> x = 6.
-    >>> p = norm.cdf(x, loc=mean, scale=std)
-    >>> p
-    0.9331927987311419
-
-    Verify that `nrdtrimn` returns the original value for `mean`.
-
-    >>> from scipy.special import nrdtrimn
-    >>> nrdtrimn(p, std, x)
-    3.0000000000000004
-
-    """)
-
-add_newdoc("nrdtrisd",
-    """
-    nrdtrisd(mn, p, x, out=None)
-
-    Calculate standard deviation of normal distribution given other params.
-
-    Parameters
-    ----------
-    mn : scalar or ndarray
-        The mean of the normal distribution.
-    p : array_like
-        CDF values, in range (0, 1].
-    x : array_like
-        Quantiles, i.e. the upper limit of integration.
-
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    std : scalar or ndarray
-        Standard deviation.
-
-    See Also
-    --------
-    scipy.stats.norm : Normal distribution
-    ndtr : Standard normal cumulative probability distribution
-    ndtri : Inverse of standard normal CDF with respect to quantile
-    nrdtrimn : Inverse of normal distribution CDF with respect to
-               mean
-
-    Examples
-    --------
-    `nrdtrisd` can be used to recover the standard deviation of a normal
-    distribution if we know the CDF value `p` for a given quantile `x` and
-    the mean `mn`. First, we calculate the normal distribution CDF for an
-    exemplary parameter set.
-
-    >>> from scipy.stats import norm
-    >>> mean = 3.
-    >>> std = 2.
-    >>> x = 6.
-    >>> p = norm.cdf(x, loc=mean, scale=std)
-    >>> p
-    0.9331927987311419
-
-    Verify that `nrdtrisd` returns the original value for `std`.
-
-    >>> from scipy.special import nrdtrisd
-    >>> nrdtrisd(mean, p, x)
-    2.0000000000000004
-
-    """)
-
-add_newdoc("ndtri",
-    """
-    ndtri(y, out=None)
-
-    Inverse of `ndtr` vs x
-
-    Returns the argument x for which the area under the standard normal
-    probability density function (integrated from minus infinity to `x`)
-    is equal to y.
-
-    Parameters
-    ----------
-    p : array_like
-        Probability
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    x : scalar or ndarray
-        Value of x such that ``ndtr(x) == p``.
-
-    See Also
-    --------
-    ndtr : Standard normal cumulative probability distribution
-    ndtri_exp : Inverse of log_ndtr
-
-    Examples
-    --------
-    `ndtri` is the percentile function of the standard normal distribution.
-    This means it returns the inverse of the cumulative density `ndtr`. First,
-    let us compute a cumulative density value.
-
-    >>> import numpy as np
-    >>> from scipy.special import ndtri, ndtr
-    >>> cdf_val = ndtr(2)
-    >>> cdf_val
-    0.9772498680518208
-
-    Verify that `ndtri` yields the original value for `x` up to floating point
-    errors.
-
-    >>> ndtri(cdf_val)
-    2.0000000000000004
-
-    Plot the function. For that purpose, we provide a NumPy array as argument.
-
-    >>> import matplotlib.pyplot as plt
-    >>> x = np.linspace(0.01, 1, 200)
-    >>> fig, ax = plt.subplots()
-    >>> ax.plot(x, ndtri(x))
-    >>> ax.set_title("Standard normal percentile function")
-    >>> plt.show()
-    """)
-
-add_newdoc("pdtr",
-    r"""
-    pdtr(k, m, out=None)
-
-    Poisson cumulative distribution function.
-
-    Defined as the probability that a Poisson-distributed random
-    variable with event rate :math:`m` is less than or equal to
-    :math:`k`. More concretely, this works out to be [1]_
-
-    .. math::
-
-       \exp(-m) \sum_{j = 0}^{\lfloor{k}\rfloor} \frac{m^j}{j!}.
-
-    Parameters
-    ----------
-    k : array_like
-        Number of occurrences (nonnegative, real)
-    m : array_like
-        Shape parameter (nonnegative, real)
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        Values of the Poisson cumulative distribution function
-
-    See Also
-    --------
-    pdtrc : Poisson survival function
-    pdtrik : inverse of `pdtr` with respect to `k`
-    pdtri : inverse of `pdtr` with respect to `m`
-
-    References
-    ----------
-    .. [1] https://en.wikipedia.org/wiki/Poisson_distribution
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import scipy.special as sc
-
-    It is a cumulative distribution function, so it converges to 1
-    monotonically as `k` goes to infinity.
-
-    >>> sc.pdtr([1, 10, 100, np.inf], 1)
-    array([0.73575888, 0.99999999, 1.        , 1.        ])
-
-    It is discontinuous at integers and constant between integers.
-
-    >>> sc.pdtr([1, 1.5, 1.9, 2], 1)
-    array([0.73575888, 0.73575888, 0.73575888, 0.9196986 ])
-
-    """)
-
-add_newdoc("pdtrc",
-    """
-    pdtrc(k, m, out=None)
-
-    Poisson survival function
-
-    Returns the sum of the terms from k+1 to infinity of the Poisson
-    distribution: sum(exp(-m) * m**j / j!, j=k+1..inf) = gammainc(
-    k+1, m). Arguments must both be non-negative doubles.
-
-    Parameters
-    ----------
-    k : array_like
-        Number of occurrences (nonnegative, real)
-    m : array_like
-        Shape parameter (nonnegative, real)
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        Values of the Poisson survival function
-
-    See Also
-    --------
-    pdtr : Poisson cumulative distribution function
-    pdtrik : inverse of `pdtr` with respect to `k`
-    pdtri : inverse of `pdtr` with respect to `m`
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import scipy.special as sc
-
-    It is a survival function, so it decreases to 0
-    monotonically as `k` goes to infinity.
-
-    >>> k = np.array([1, 10, 100, np.inf])
-    >>> sc.pdtrc(k, 1)
-    array([2.64241118e-001, 1.00477664e-008, 3.94147589e-161, 0.00000000e+000])
-
-    It can be expressed in terms of the lower incomplete gamma
-    function `gammainc`.
-
-    >>> sc.gammainc(k + 1, 1)
-    array([2.64241118e-001, 1.00477664e-008, 3.94147589e-161, 0.00000000e+000])
-
-    """)
-
 add_newdoc("pdtri",
     """
     pdtri(k, y, out=None)
 
-    Inverse to `pdtr` vs m
+    Inverse of `pdtr` with respect to `m`.
 
     Returns the Poisson variable `m` such that the sum from 0 to `k` of
     the Poisson density is equal to the given probability `y`:
-    calculated by ``gammaincinv(k + 1, y)``. `k` must be a nonnegative
+    calculated by ``gammainccinv(k + 1, y)``. `k` must be a nonnegative
     integer and `y` between 0 and 1.
 
     Parameters
     ----------
     k : array_like
-        Number of occurrences (nonnegative, real)
+        Number of occurrences (nonnegative, real).
     y : array_like
-        Probability
+        Probability.
     out : ndarray, optional
-        Optional output array for the function results
+        Optional output array for the function results.
 
     Returns
     -------
     scalar or ndarray
-        Values of the shape parameter `m` such that ``pdtr(k, m) = p``
+        Values of the shape parameter `m` such that ``pdtr(k, m) = y``.
 
     See Also
     --------
     pdtr : Poisson cumulative distribution function
     pdtrc : Poisson survival function
-    pdtrik : inverse of `pdtr` with respect to `k`
+    pdtrik : Inverse of `pdtr` with respect to `k`
 
     Examples
     --------
@@ -6150,15 +4583,23 @@ add_newdoc("pdtri",
 
     Compute the CDF for several values of `m`:
 
+    >>> k = 1
     >>> m = [0.5, 1, 1.5]
-    >>> p = sc.pdtr(1, m)
+    >>> p = sc.pdtr(k, m)
     >>> p
     array([0.90979599, 0.73575888, 0.5578254 ])
 
-    Compute the inverse. We recover the values of `m`, as expected:
+    Invert the CDF with respect to the Poisson mean. We recover the values
+    of `m`, as expected:
 
-    >>> sc.pdtri(1, p)
+    >>> sc.pdtri(k, p)
     array([0.5, 1. , 1.5])
+
+    Verify the relation with `gammainccinv`:
+
+    >>> sc.gammainccinv(k + 1, p)
+    array([0.5, 1. , 1.5])
+
 
     """)
 
@@ -6166,7 +4607,7 @@ add_newdoc("pdtrik",
     """
     pdtrik(p, m, out=None)
 
-    Inverse to `pdtr` vs `k`.
+    Inverse of `pdtr` with respect to `k`.
 
     Parameters
     ----------
@@ -6188,6 +4629,15 @@ add_newdoc("pdtrik",
     pdtrc : Poisson survival function
     pdtri : inverse of `pdtr` with respect to `m`
 
+    Notes
+    -----
+    This function relies on the ``gamma_q_inva`` function from the Boost
+    Math C++ library [1]_.
+
+    References
+    ----------
+    .. [1] The Boost Developers. "Boost C++ Libraries". https://www.boost.org/.
+
     Examples
     --------
     >>> import scipy.special as sc
@@ -6203,69 +4653,6 @@ add_newdoc("pdtrik",
 
     >>> sc.pdtrik(p, 2)
     array([1., 2., 3.])
-
-    """)
-
-add_newdoc("poch",
-    r"""
-    poch(z, m, out=None)
-
-    Pochhammer symbol.
-
-    The Pochhammer symbol (rising factorial) is defined as
-
-    .. math::
-
-        (z)_m = \frac{\Gamma(z + m)}{\Gamma(z)}
-
-    For positive integer `m` it reads
-
-    .. math::
-
-        (z)_m = z (z + 1) ... (z + m - 1)
-
-    See [dlmf]_ for more details.
-
-    Parameters
-    ----------
-    z, m : array_like
-        Real-valued arguments.
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        The value of the function.
-
-    References
-    ----------
-    .. [dlmf] Nist, Digital Library of Mathematical Functions
-        https://dlmf.nist.gov/5.2#iii
-
-    Examples
-    --------
-    >>> import scipy.special as sc
-
-    It is 1 when m is 0.
-
-    >>> sc.poch([1, 2, 3, 4], 0)
-    array([1., 1., 1., 1.])
-
-    For z equal to 1 it reduces to the factorial function.
-
-    >>> sc.poch(1, 5)
-    120.0
-    >>> 1 * 2 * 3 * 4 * 5
-    120
-
-    It can be expressed in terms of the gamma function.
-
-    >>> z, m = 3.7, 2.1
-    >>> sc.poch(z, m)
-    20.529581933776953
-    >>> sc.gamma(z + m) / sc.gamma(z)
-    20.52958193377696
 
     """)
 
@@ -6336,232 +4723,6 @@ add_newdoc("powm1", """
     """)
 
 
-add_newdoc("pseudo_huber",
-    r"""
-    pseudo_huber(delta, r, out=None)
-
-    Pseudo-Huber loss function.
-
-    .. math:: \mathrm{pseudo\_huber}(\delta, r) =
-              \delta^2 \left( \sqrt{ 1 + \left( \frac{r}{\delta} \right)^2 } - 1 \right)
-
-    Parameters
-    ----------
-    delta : array_like
-        Input array, indicating the soft quadratic vs. linear loss changepoint.
-    r : array_like
-        Input array, possibly representing residuals.
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    res : scalar or ndarray
-        The computed Pseudo-Huber loss function values.
-
-    See Also
-    --------
-    huber: Similar function which this function approximates
-
-    Notes
-    -----
-    Like `huber`, `pseudo_huber` often serves as a robust loss function
-    in statistics or machine learning to reduce the influence of outliers.
-    Unlike `huber`, `pseudo_huber` is smooth.
-
-    Typically, `r` represents residuals, the difference
-    between a model prediction and data. Then, for :math:`|r|\leq\delta`,
-    `pseudo_huber` resembles the squared error and for :math:`|r|>\delta` the
-    absolute error. This way, the Pseudo-Huber loss often achieves
-    a fast convergence in model fitting for small residuals like the squared
-    error loss function and still reduces the influence of outliers
-    (:math:`|r|>\delta`) like the absolute error loss. As :math:`\delta` is
-    the cutoff between squared and absolute error regimes, it has
-    to be tuned carefully for each problem. `pseudo_huber` is also
-    convex, making it suitable for gradient based optimization. [1]_ [2]_
-
-    .. versionadded:: 0.15.0
-
-    References
-    ----------
-    .. [1] Hartley, Zisserman, "Multiple View Geometry in Computer Vision".
-           2003. Cambridge University Press. p. 619
-    .. [2] Charbonnier et al. "Deterministic edge-preserving regularization
-           in computed imaging". 1997. IEEE Trans. Image Processing.
-           6 (2): 298 - 311.
-
-    Examples
-    --------
-    Import all necessary modules.
-
-    >>> import numpy as np
-    >>> from scipy.special import pseudo_huber, huber
-    >>> import matplotlib.pyplot as plt
-
-    Calculate the function for ``delta=1`` at ``r=2``.
-
-    >>> pseudo_huber(1., 2.)
-    1.2360679774997898
-
-    Calculate the function at ``r=2`` for different `delta` by providing
-    a list or NumPy array for `delta`.
-
-    >>> pseudo_huber([1., 2., 4.], 3.)
-    array([2.16227766, 3.21110255, 4.        ])
-
-    Calculate the function for ``delta=1`` at several points by providing
-    a list or NumPy array for `r`.
-
-    >>> pseudo_huber(2., np.array([1., 1.5, 3., 4.]))
-    array([0.47213595, 1.        , 3.21110255, 4.94427191])
-
-    The function can be calculated for different `delta` and `r` by
-    providing arrays for both with compatible shapes for broadcasting.
-
-    >>> r = np.array([1., 2.5, 8., 10.])
-    >>> deltas = np.array([[1.], [5.], [9.]])
-    >>> print(r.shape, deltas.shape)
-    (4,) (3, 1)
-
-    >>> pseudo_huber(deltas, r)
-    array([[ 0.41421356,  1.6925824 ,  7.06225775,  9.04987562],
-           [ 0.49509757,  2.95084972, 22.16990566, 30.90169944],
-           [ 0.49846624,  3.06693762, 27.37435121, 40.08261642]])
-
-    Plot the function for different `delta`.
-
-    >>> x = np.linspace(-4, 4, 500)
-    >>> deltas = [1, 2, 3]
-    >>> linestyles = ["dashed", "dotted", "dashdot"]
-    >>> fig, ax = plt.subplots()
-    >>> combined_plot_parameters = list(zip(deltas, linestyles))
-    >>> for delta, style in combined_plot_parameters:
-    ...     ax.plot(x, pseudo_huber(delta, x), label=rf"$\delta={delta}$",
-    ...             ls=style)
-    >>> ax.legend(loc="upper center")
-    >>> ax.set_xlabel("$x$")
-    >>> ax.set_title(r"Pseudo-Huber loss function $h_{\delta}(x)$")
-    >>> ax.set_xlim(-4, 4)
-    >>> ax.set_ylim(0, 8)
-    >>> plt.show()
-
-    Finally, illustrate the difference between `huber` and `pseudo_huber` by
-    plotting them and their gradients with respect to `r`. The plot shows
-    that `pseudo_huber` is continuously differentiable while `huber` is not
-    at the points :math:`\pm\delta`.
-
-    >>> def huber_grad(delta, x):
-    ...     grad = np.copy(x)
-    ...     linear_area = np.argwhere(np.abs(x) > delta)
-    ...     grad[linear_area]=delta*np.sign(x[linear_area])
-    ...     return grad
-    >>> def pseudo_huber_grad(delta, x):
-    ...     return x* (1+(x/delta)**2)**(-0.5)
-    >>> x=np.linspace(-3, 3, 500)
-    >>> delta = 1.
-    >>> fig, ax = plt.subplots(figsize=(7, 7))
-    >>> ax.plot(x, huber(delta, x), label="Huber", ls="dashed")
-    >>> ax.plot(x, huber_grad(delta, x), label="Huber Gradient", ls="dashdot")
-    >>> ax.plot(x, pseudo_huber(delta, x), label="Pseudo-Huber", ls="dotted")
-    >>> ax.plot(x, pseudo_huber_grad(delta, x), label="Pseudo-Huber Gradient",
-    ...         ls="solid")
-    >>> ax.legend(loc="upper center")
-    >>> plt.show()
-    """)
-
-add_newdoc("rel_entr",
-    r"""
-    rel_entr(x, y, out=None)
-
-    Elementwise function for computing relative entropy.
-
-    .. math::
-
-        \mathrm{rel\_entr}(x, y) =
-            \begin{cases}
-                x \log(x / y) & x > 0, y > 0 \\
-                0 & x = 0, y \ge 0 \\
-                \infty & \text{otherwise}
-            \end{cases}
-
-    Parameters
-    ----------
-    x, y : array_like
-        Input arrays
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        Relative entropy of the inputs
-
-    See Also
-    --------
-    entr, kl_div, scipy.stats.entropy
-
-    Notes
-    -----
-    .. versionadded:: 0.15.0
-
-    This function is jointly convex in x and y.
-
-    The origin of this function is in convex programming; see
-    [1]_. Given two discrete probability distributions :math:`p_1,
-    \ldots, p_n` and :math:`q_1, \ldots, q_n`, the definition of relative
-    entropy in the context of *information theory* is
-
-    .. math::
-
-        \sum_{i = 1}^n \mathrm{rel\_entr}(p_i, q_i).
-
-    To compute the latter quantity, use `scipy.stats.entropy`.
-
-    See [2]_ for details.
-
-    References
-    ----------
-    .. [1] Boyd, Stephen and Lieven Vandenberghe. *Convex optimization*.
-           Cambridge University Press, 2004.
-           :doi:`https://doi.org/10.1017/CBO9780511804441`
-    .. [2] Kullback-Leibler divergence,
-           https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence
-
-    """)
-
-add_newdoc("round",
-    """
-    round(x, out=None)
-
-    Round to the nearest integer.
-
-    Returns the nearest integer to `x`.  If `x` ends in 0.5 exactly,
-    the nearest even integer is chosen.
-
-    Parameters
-    ----------
-    x : array_like
-        Real valued input.
-    out : ndarray, optional
-        Optional output array for the function results.
-
-    Returns
-    -------
-    scalar or ndarray
-        The nearest integers to the elements of `x`. The result is of
-        floating type, not integer type.
-
-    Examples
-    --------
-    >>> import scipy.special as sc
-
-    It rounds to even.
-
-    >>> sc.round([0.5, 1.5])
-    array([0., 2.])
-
-    """)
-
 add_newdoc("shichi",
     r"""
     shichi(x, out=None)
@@ -6581,7 +4742,7 @@ add_newdoc("shichi",
       \gamma + \log(x) + \int_0^x \frac{\cosh{t} - 1}{t} dt
 
     where :math:`\gamma` is Euler's constant and :math:`\log` is the
-    principal branch of the logarithm [1]_.
+    principal branch of the logarithm [1]_ (see also [2]_).
 
     Parameters
     ----------
@@ -6611,8 +4772,8 @@ add_newdoc("shichi",
     + 0j)`` differ by a factor of ``1j*pi``.
 
     For real arguments the function is computed by calling Cephes'
-    [2]_ *shichi* routine. For complex arguments the algorithm is based
-    on Mpmath's [3]_ *shi* and *chi* routines.
+    [3]_ *shichi* routine. For complex arguments the algorithm is based
+    on Mpmath's [4]_ *shi* and *chi* routines.
 
     References
     ----------
@@ -6620,11 +4781,13 @@ add_newdoc("shichi",
            Handbook of Mathematical Functions with Formulas,
            Graphs, and Mathematical Tables. New York: Dover, 1972.
            (See Section 5.2.)
-    .. [2] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
-    .. [3] Fredrik Johansson and others.
+    .. [2] NIST Digital Library of Mathematical Functions
+           https://dlmf.nist.gov/6.2.E15 and https://dlmf.nist.gov/6.2.E16
+    .. [3] Cephes Mathematical Functions Library,
+           https://netlib.org/cephes/
+    .. [4] Fredrik Johansson and others.
            "mpmath: a Python library for arbitrary-precision floating-point
-           arithmetic" (Version 0.19) http://mpmath.org/
+           arithmetic" (Version 0.19) https://mpmath.org/
 
     Examples
     --------
@@ -6691,7 +4854,7 @@ add_newdoc("sici",
       \gamma + \log(x) + \int_0^x \frac{\cos{t} - 1}{t}dt
 
     where :math:`\gamma` is Euler's constant and :math:`\log` is the
-    principal branch of the logarithm [1]_.
+    principal branch of the logarithm [1]_ (see also [2]_).
 
     Parameters
     ----------
@@ -6721,8 +4884,8 @@ add_newdoc("sici",
     differ by a factor of ``1j*pi``.
 
     For real arguments the function is computed by calling Cephes'
-    [2]_ *sici* routine. For complex arguments the algorithm is based
-    on Mpmath's [3]_ *si* and *ci* routines.
+    [3]_ *sici* routine. For complex arguments the algorithm is based
+    on Mpmath's [4]_ *si* and *ci* routines.
 
     References
     ----------
@@ -6730,11 +4893,14 @@ add_newdoc("sici",
            Handbook of Mathematical Functions with Formulas,
            Graphs, and Mathematical Tables. New York: Dover, 1972.
            (See Section 5.2.)
-    .. [2] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
-    .. [3] Fredrik Johansson and others.
+    .. [2] NIST Digital Library of Mathematical Functions
+           https://dlmf.nist.gov/6.2.E9, https://dlmf.nist.gov/6.2.E12,
+           and https://dlmf.nist.gov/6.2.E13
+    .. [3] Cephes Mathematical Functions Library,
+           https://netlib.org/cephes/
+    .. [4] Fredrik Johansson and others.
            "mpmath: a Python library for arbitrary-precision floating-point
-           arithmetic" (Version 0.19) http://mpmath.org/
+           arithmetic" (Version 0.19) https://mpmath.org/
 
     Examples
     --------
@@ -6795,7 +4961,7 @@ add_newdoc("smirnov",
     r"""
     smirnov(n, d, out=None)
 
-    Kolmogorov-Smirnov complementary cumulative distribution function
+    Kolmogorov-Smirnov complementary cumulative distribution function.
 
     Returns the exact Kolmogorov-Smirnov complementary cumulative
     distribution function,(aka the Survival Function) of Dn+ (or Dn-)
@@ -6908,7 +5074,7 @@ add_newdoc("smirnovi",
     """
     smirnovi(n, p, out=None)
 
-    Inverse to `smirnov`
+    Inverse to `smirnov`.
 
     Returns `d` such that ``smirnov(n, d) == p``, the critical value
     corresponding to `p`.
@@ -6980,105 +5146,12 @@ add_newdoc("_smirnovp",
      Internal function, do not use.
     """)
 
-add_newdoc("spence",
-    r"""
-    spence(z, out=None)
-
-    Spence's function, also known as the dilogarithm.
-
-    It is defined to be
-
-    .. math::
-      \int_1^z \frac{\log(t)}{1 - t}dt
-
-    for complex :math:`z`, where the contour of integration is taken
-    to avoid the branch cut of the logarithm. Spence's function is
-    analytic everywhere except the negative real axis where it has a
-    branch cut.
-
-    Parameters
-    ----------
-    z : array_like
-        Points at which to evaluate Spence's function
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    s : scalar or ndarray
-        Computed values of Spence's function
-
-    Notes
-    -----
-    There is a different convention which defines Spence's function by
-    the integral
-
-    .. math::
-      -\int_0^z \frac{\log(1 - t)}{t}dt;
-
-    this is our ``spence(1 - z)``.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from scipy.special import spence
-    >>> import matplotlib.pyplot as plt
-
-    The function is defined for complex inputs:
-
-    >>> spence([1-1j, 1.5+2j, 3j, -10-5j])
-    array([-0.20561676+0.91596559j, -0.86766909-1.39560134j,
-           -0.59422064-2.49129918j, -1.14044398+6.80075924j])
-
-    For complex inputs on the branch cut, which is the negative real axis,
-    the function returns the limit for ``z`` with positive imaginary part.
-    For example, in the following, note the sign change of the imaginary
-    part of the output for ``z = -2`` and ``z = -2 - 1e-8j``:
-
-    >>> spence([-2 + 1e-8j, -2, -2 - 1e-8j])
-    array([2.32018041-3.45139229j, 2.32018042-3.4513923j ,
-           2.32018041+3.45139229j])
-
-    The function returns ``nan`` for real inputs on the branch cut:
-
-    >>> spence(-1.5)
-    nan
-
-    Verify some particular values: ``spence(0) = pi**2/6``,
-    ``spence(1) = 0`` and ``spence(2) = -pi**2/12``.
-
-    >>> spence([0, 1, 2])
-    array([ 1.64493407,  0.        , -0.82246703])
-    >>> np.pi**2/6, -np.pi**2/12
-    (1.6449340668482264, -0.8224670334241132)
-
-    Verify the identity::
-
-        spence(z) + spence(1 - z) = pi**2/6 - log(z)*log(1 - z)
-
-    >>> z = 3 + 4j
-    >>> spence(z) + spence(1 - z)
-    (-2.6523186143876067+1.8853470951513935j)
-    >>> np.pi**2/6 - np.log(z)*np.log(1 - z)
-    (-2.652318614387606+1.885347095151394j)
-
-    Plot the function for positive real input.
-
-    >>> fig, ax = plt.subplots()
-    >>> x = np.linspace(0, 6, 400)
-    >>> ax.plot(x, spence(x))
-    >>> ax.grid()
-    >>> ax.set_xlabel('x')
-    >>> ax.set_title('spence(x)')
-    >>> plt.show()
-    """)
-
 add_newdoc(
     "stdtr",
     r"""
     stdtr(df, t, out=None)
 
-    Student t distribution cumulative distribution function
+    Student t distribution cumulative distribution function.
 
     Returns the integral:
 
@@ -7117,7 +5190,7 @@ add_newdoc(
 
     References
     ----------
-    .. [1] Boost C++ Libraries, http://www.boost.org/
+    .. [1] Boost C++ Libraries, https://www.boost.org/
 
     Examples
     --------
@@ -7178,7 +5251,7 @@ add_newdoc("stdtridf",
     """
     stdtridf(p, t, out=None)
 
-    Inverse of `stdtr` vs df
+    Inverse of `stdtr` vs df.
 
     Returns the argument df such that stdtr(df, t) is equal to `p`.
 
@@ -7262,7 +5335,7 @@ add_newdoc("stdtrit",
 
     References
     ----------
-    .. [1] Boost C++ Libraries, http://www.boost.org/
+    .. [1] Boost C++ Libraries, https://www.boost.org/
 
     Examples
     --------
@@ -7326,124 +5399,6 @@ add_newdoc("stdtrit",
     True
     """)
 
-add_newdoc(
-    "tklmbda",
-    r"""
-    tklmbda(x, lmbda, out=None)
-
-    Cumulative distribution function of the Tukey lambda distribution.
-
-    Parameters
-    ----------
-    x, lmbda : array_like
-        Parameters
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    cdf : scalar or ndarray
-        Value of the Tukey lambda CDF
-
-    See Also
-    --------
-    scipy.stats.tukeylambda : Tukey lambda distribution
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import matplotlib.pyplot as plt
-    >>> from scipy.special import tklmbda, expit
-
-    Compute the cumulative distribution function (CDF) of the Tukey lambda
-    distribution at several ``x`` values for `lmbda` = -1.5.
-
-    >>> x = np.linspace(-2, 2, 9)
-    >>> x
-    array([-2. , -1.5, -1. , -0.5,  0. ,  0.5,  1. ,  1.5,  2. ])
-    >>> tklmbda(x, -1.5)
-    array([0.34688734, 0.3786554 , 0.41528805, 0.45629737, 0.5       ,
-           0.54370263, 0.58471195, 0.6213446 , 0.65311266])
-
-    When `lmbda` is 0, the function is the logistic sigmoid function,
-    which is implemented in `scipy.special` as `expit`.
-
-    >>> tklmbda(x, 0)
-    array([0.11920292, 0.18242552, 0.26894142, 0.37754067, 0.5       ,
-           0.62245933, 0.73105858, 0.81757448, 0.88079708])
-    >>> expit(x)
-    array([0.11920292, 0.18242552, 0.26894142, 0.37754067, 0.5       ,
-           0.62245933, 0.73105858, 0.81757448, 0.88079708])
-
-    When `lmbda` is 1, the Tukey lambda distribution is uniform on the
-    interval [-1, 1], so the CDF increases linearly.
-
-    >>> t = np.linspace(-1, 1, 9)
-    >>> tklmbda(t, 1)
-    array([0.   , 0.125, 0.25 , 0.375, 0.5  , 0.625, 0.75 , 0.875, 1.   ])
-
-    In the following, we generate plots for several values of `lmbda`.
-
-    The first figure shows graphs for `lmbda` <= 0.
-
-    >>> styles = ['-', '-.', '--', ':']
-    >>> fig, ax = plt.subplots()
-    >>> x = np.linspace(-12, 12, 500)
-    >>> for k, lmbda in enumerate([-1.0, -0.5, 0.0]):
-    ...     y = tklmbda(x, lmbda)
-    ...     ax.plot(x, y, styles[k], label=rf'$\lambda$ = {lmbda:-4.1f}')
-
-    >>> ax.set_title(r'tklmbda(x, $\lambda$)')
-    >>> ax.set_label('x')
-    >>> ax.legend(framealpha=1, shadow=True)
-    >>> ax.grid(True)
-
-    The second figure shows graphs for `lmbda` > 0.  The dots in the
-    graphs show the bounds of the support of the distribution.
-
-    >>> fig, ax = plt.subplots()
-    >>> x = np.linspace(-4.2, 4.2, 500)
-    >>> lmbdas = [0.25, 0.5, 1.0, 1.5]
-    >>> for k, lmbda in enumerate(lmbdas):
-    ...     y = tklmbda(x, lmbda)
-    ...     ax.plot(x, y, styles[k], label=fr'$\lambda$ = {lmbda}')
-
-    >>> ax.set_prop_cycle(None)
-    >>> for lmbda in lmbdas:
-    ...     ax.plot([-1/lmbda, 1/lmbda], [0, 1], '.', ms=8)
-
-    >>> ax.set_title(r'tklmbda(x, $\lambda$)')
-    >>> ax.set_xlabel('x')
-    >>> ax.legend(framealpha=1, shadow=True)
-    >>> ax.grid(True)
-
-    >>> plt.tight_layout()
-    >>> plt.show()
-
-    The CDF of the Tukey lambda distribution is also implemented as the
-    ``cdf`` method of `scipy.stats.tukeylambda`.  In the following,
-    ``tukeylambda.cdf(x, -0.5)`` and ``tklmbda(x, -0.5)`` compute the
-    same values:
-
-    >>> from scipy.stats import tukeylambda
-    >>> x = np.linspace(-2, 2, 9)
-
-    >>> tukeylambda.cdf(x, -0.5)
-    array([0.21995157, 0.27093858, 0.33541677, 0.41328161, 0.5       ,
-           0.58671839, 0.66458323, 0.72906142, 0.78004843])
-
-    >>> tklmbda(x, -0.5)
-    array([0.21995157, 0.27093858, 0.33541677, 0.41328161, 0.5       ,
-           0.58671839, 0.66458323, 0.72906142, 0.78004843])
-
-    The implementation in ``tukeylambda`` also provides location and scale
-    parameters, and other methods such as ``pdf()`` (the probability
-    density function) and ``ppf()`` (the inverse of the CDF), so for
-    working with the Tukey lambda distribution, ``tukeylambda`` is more
-    generally useful.  The primary advantage of ``tklmbda`` is that it is
-    significantly faster than ``tukeylambda.cdf``.
-    """)
-
 add_newdoc("yn",
     r"""
     yn(n, x, out=None)
@@ -7481,7 +5436,7 @@ add_newdoc("yn",
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,
-           http://www.netlib.org/cephes/
+           https://netlib.org/cephes/
 
     Examples
     --------
@@ -7512,7 +5467,7 @@ add_newdoc("yn",
 
     If `z` is an array, the order parameter `v` must be broadcastable to
     the correct shape if different orders shall be computed in one call.
-    To calculate the orders 0 and 1 for an 1D array:
+    To calculate the orders 0 and 1 for a 1D array:
 
     >>> orders = np.array([[0], [1]])
     >>> orders.shape
@@ -7533,186 +5488,6 @@ add_newdoc("yn",
     >>> ax.legend()
     >>> plt.show()
     """)
-
-
-add_newdoc("_struve_asymp_large_z",
-    """
-    _struve_asymp_large_z(v, z, is_h)
-
-    Internal function for testing `struve` & `modstruve`
-
-    Evaluates using asymptotic expansion
-
-    Returns
-    -------
-    v, err
-    """)
-
-add_newdoc("_struve_power_series",
-    """
-    _struve_power_series(v, z, is_h)
-
-    Internal function for testing `struve` & `modstruve`
-
-    Evaluates using power series
-
-    Returns
-    -------
-    v, err
-    """)
-
-add_newdoc("_struve_bessel_series",
-    """
-    _struve_bessel_series(v, z, is_h)
-
-    Internal function for testing `struve` & `modstruve`
-
-    Evaluates using Bessel function series
-
-    Returns
-    -------
-    v, err
-    """)
-
-add_newdoc("_spherical_jn",
-    """
-    Internal function, use `spherical_jn` instead.
-    """)
-
-add_newdoc("_spherical_jn_d",
-    """
-    Internal function, use `spherical_jn` instead.
-    """)
-
-add_newdoc("_spherical_yn",
-    """
-    Internal function, use `spherical_yn` instead.
-    """)
-
-add_newdoc("_spherical_yn_d",
-    """
-    Internal function, use `spherical_yn` instead.
-    """)
-
-add_newdoc("_spherical_in",
-    """
-    Internal function, use `spherical_in` instead.
-    """)
-
-add_newdoc("_spherical_in_d",
-    """
-    Internal function, use `spherical_in` instead.
-    """)
-
-add_newdoc("_spherical_kn",
-    """
-    Internal function, use `spherical_kn` instead.
-    """)
-
-add_newdoc("_spherical_kn_d",
-    """
-    Internal function, use `spherical_kn` instead.
-    """)
-
-add_newdoc("owens_t",
-    """
-    owens_t(h, a, out=None)
-
-    Owen's T Function.
-
-    The function T(h, a) gives the probability of the event
-    (X > h and 0 < Y < a * X) where X and Y are independent
-    standard normal random variables.
-
-    Parameters
-    ----------
-    h: array_like
-        Input value.
-    a: array_like
-        Input value.
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    t: scalar or ndarray
-        Probability of the event (X > h and 0 < Y < a * X),
-        where X and Y are independent standard normal random variables.
-
-    References
-    ----------
-    .. [1] M. Patefield and D. Tandy, "Fast and accurate calculation of
-           Owen's T Function", Statistical Software vol. 5, pp. 1-25, 2000.
-
-    Examples
-    --------
-    >>> from scipy import special
-    >>> a = 3.5
-    >>> h = 0.78
-    >>> special.owens_t(h, a)
-    0.10877216734852274
-    """)
-
-add_newdoc("_factorial",
-    """
-    Internal function, do not use.
-    """)
-
-add_newdoc("ndtri_exp",
-    r"""
-    ndtri_exp(y, out=None)
-
-    Inverse of `log_ndtr` vs x. Allows for greater precision than
-    `ndtri` composed with `numpy.exp` for very small values of y and for
-    y close to 0.
-
-    Parameters
-    ----------
-    y : array_like of float
-        Function argument
-    out : ndarray, optional
-        Optional output array for the function results
-
-    Returns
-    -------
-    scalar or ndarray
-        Inverse of the log CDF of the standard normal distribution, evaluated
-        at y.
-
-    See Also
-    --------
-    log_ndtr : log of the standard normal cumulative distribution function
-    ndtr : standard normal cumulative distribution function
-    ndtri : standard normal percentile function
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import scipy.special as sc
-
-    `ndtri_exp` agrees with the naive implementation when the latter does
-    not suffer from underflow.
-
-    >>> sc.ndtri_exp(-1)
-    -0.33747496376420244
-    >>> sc.ndtri(np.exp(-1))
-    -0.33747496376420244
-
-    For extreme values of y, the naive approach fails
-
-    >>> sc.ndtri(np.exp(-800))
-    -inf
-    >>> sc.ndtri(np.exp(-1e-20))
-    inf
-
-    whereas `ndtri_exp` is still able to compute the result to high precision.
-
-    >>> sc.ndtri_exp(-800)
-    -39.88469483825668
-    >>> sc.ndtri_exp(-1e-20)
-    9.262340089798409
-    """)
-
 
 add_newdoc("_stirling2_inexact",
     r"""
@@ -8763,7 +6538,7 @@ add_newdoc(
     """
     _hypergeom_variance(r, N, M)
 
-    Mean of hypergeometric distribution.
+    Variance of hypergeometric distribution.
 
     Parameters
     ----------

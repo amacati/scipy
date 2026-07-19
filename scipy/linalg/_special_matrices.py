@@ -3,8 +3,8 @@ import math
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 from scipy._lib._util import _apply_over_batch
-from scipy._lib._array_api import array_namespace, xp_capabilities, xp_size
-import scipy._lib.array_api_extra as xpx
+from scipy._lib._array_api import array_namespace, xp_capabilities, xp_size, xp_promote
+import scipy._external.array_api_extra as xpx
 
 
 __all__ = ['toeplitz', 'circulant', 'hankel',
@@ -18,6 +18,7 @@ __all__ = ['toeplitz', 'circulant', 'hankel',
 # -----------------------------------------------------------------------------
 
 
+@xp_capabilities(np_only=True)
 def toeplitz(c, r=None):
     r"""
     Construct a Toeplitz matrix.
@@ -25,6 +26,11 @@ def toeplitz(c, r=None):
     The Toeplitz matrix has constant diagonals, with c as its first column
     and r as its first row. If r is not given, ``r == conjugate(c)`` is
     assumed.
+
+    The documentation is written assuming array arguments are of specified
+    "core" shapes. However, array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
 
     Parameters
     ----------
@@ -84,9 +90,14 @@ def _toeplitz(c, r):
     return as_strided(vals[len(c)-1:], shape=out_shp, strides=(-n, n)).copy()
 
 
+@xp_capabilities(np_only=True)
 def circulant(c):
     """
     Construct a circulant matrix.
+
+    Array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
 
     Parameters
     ----------
@@ -145,8 +156,10 @@ def circulant(c):
     return A.reshape(batch_shape + (N, N)).copy()
 
 
+@xp_capabilities(np_only=True)
+@_apply_over_batch(("c", 1), ("r", 1))
 def hankel(c, r=None):
-    """
+    r"""
     Construct a Hankel matrix.
 
     The Hankel matrix has constant anti-diagonals, with `c` as its
@@ -159,13 +172,11 @@ def hankel(c, r=None):
     Parameters
     ----------
     c : array_like
-        First column of the matrix. Whatever the actual shape of `c`, it
-        will be converted to a 1-D array.
+        First column of the matrix.
     r : array_like, optional
         Last row of the matrix. If None, ``r = zeros_like(c)`` is assumed.
         r[0] is ignored; the last row of the returned matrix is
-        ``[c[-1], r[1:]]``. Whatever the actual shape of `r`, it will be
-        converted to a 1-D array.
+        ``[c[-1], r[1:]]``.
 
     Returns
     -------
@@ -191,11 +202,12 @@ def hankel(c, r=None):
            [4, 7, 7, 8, 9]])
 
     """
-    c = np.asarray(c).ravel()
+    c = np.asarray(c)
     if r is None:
         r = np.zeros_like(c)
     else:
-        r = np.asarray(r).ravel()
+        r = np.asarray(r)
+
     # Form a 1-D array of values to be used in the matrix, containing `c`
     # followed by r[1:].
     vals = np.concatenate((c, r[1:]))
@@ -207,7 +219,7 @@ def hankel(c, r=None):
 
 def hadamard(n, dtype=int):
     """
-    Construct an Hadamard matrix.
+    Construct a Hadamard matrix.
 
     Constructs an n-by-n Hadamard matrix, using Sylvester's
     construction. `n` must be a power of 2.
@@ -250,7 +262,7 @@ def hadamard(n, dtype=int):
     else:
         lg2 = int(math.log(n, 2))
     if 2 ** lg2 != n:
-        raise ValueError("n must be an positive integer, and n must be "
+        raise ValueError("n must be a positive integer, and n must be "
                          "a power of 2")
 
     H = np.array([[1]], dtype=dtype)
@@ -262,14 +274,20 @@ def hadamard(n, dtype=int):
     return H
 
 
+@xp_capabilities()
 @_apply_over_batch(("f", 1), ("s", 1))
 def leslie(f, s):
     """
     Create a Leslie matrix.
 
-    Given the length n array of fecundity coefficients `f` and the length
-    n-1 array of survival coefficients `s`, return the associated Leslie
+    Given the length ``n`` array of fecundity coefficients `f` and the length
+    ``n - 1`` array of survival coefficients `s`, return the associated Leslie
     matrix.
+
+    The documentation is written assuming array arguments are of specified
+    "core" shapes. However, array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
 
     Parameters
     ----------
@@ -290,10 +308,10 @@ def leslie(f, s):
     Notes
     -----
     The Leslie matrix is used to model discrete-time, age-structured
-    population growth [1]_ [2]_. In a population with `n` age classes, two sets
-    of parameters define a Leslie matrix: the `n` "fecundity coefficients",
+    population growth [1]_ [2]_. In a population with ``n`` age classes, two sets
+    of parameters define a Leslie matrix: the ``n`` "fecundity coefficients",
     which give the number of offspring per-capita produced by each age
-    class, and the `n` - 1 "survival coefficients", which give the
+    class, and the ``n - 1`` "survival coefficients", which give the
     per-capita survival rate of each age class.
 
     References
@@ -314,8 +332,10 @@ def leslie(f, s):
            [ 0. ,  0. ,  0.7,  0. ]])
 
     """
-    f = np.atleast_1d(f)
-    s = np.atleast_1d(s)
+    xp = array_namespace(f, s)
+    f, s = xp_promote(f, s, xp=xp)
+    f = xpx.atleast_nd(f, ndim=1, xp=xp)
+    s = xpx.atleast_nd(s, ndim=1, xp=xp)
 
     if f.shape[-1] != s.shape[-1] + 1:
         raise ValueError("Incorrect lengths for f and s. The length of s along "
@@ -324,13 +344,13 @@ def leslie(f, s):
         raise ValueError("The length of s must be at least 1.")
 
     n = f.shape[-1]
-    tmp = f[0] + s[0]
-    a = np.zeros((n, n), dtype=tmp.dtype)
-    a[0] = f
-    a[list(range(1, n)), list(range(0, n - 1))] = s
+    a = xp.zeros((n, n), dtype=f.dtype)
+    a = xpx.at(a)[0, :].set(f)
+    a += xpx.create_diagonal(s, offset=-1, xp=xp)
     return a
 
 
+@xp_capabilities(jax_jit=False, allow_dask_compute=2)
 def block_diag(*arrs):
     """
     Create a block diagonal array from provided arrays.
@@ -342,12 +362,16 @@ def block_diag(*arrs):
          [0, B, 0],
          [0, 0, C]]
 
+    The documentation is written assuming array arguments are of specified
+    "core" shapes. However, array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
+
     Parameters
     ----------
-    A, B, C, ... : array_like
-        Input arrays.  A 1-D array or array_like sequence of length ``n`` is
-        treated as a 2-D array with shape ``(1, n)``. Any dimensions before
-        the last two are treated as batch dimensions; see :ref:`linalg_batch`.
+    *arrs : array_like
+        Input arrays ``A, B, C, ...``. A 1-D array or array_like sequence of length
+        ``n`` is treated as a 2-D array with shape ``(1, n)``.
 
     Returns
     -------
@@ -396,31 +420,40 @@ def block_diag(*arrs):
            [ 0.,  0.,  0.,  6.,  7.]])
 
     """
+    xp = array_namespace(*arrs)
+
     if arrs == ():
         arrs = ([],)
-    arrs = [np.atleast_2d(a) for a in arrs]
+    arrs = [xpx.atleast_nd(xp.asarray(a), ndim=2) for a in arrs]
 
     batch_shapes = [a.shape[:-2] for a in arrs]
     batch_shape = np.broadcast_shapes(*batch_shapes)
-    arrs = [np.broadcast_to(a, batch_shape + a.shape[-2:]) for a in arrs]
-    out_dtype = np.result_type(*[arr.dtype for arr in arrs])
-    block_shapes = np.array([a.shape[-2:] for a in arrs])
-    out = np.zeros(batch_shape + tuple(np.sum(block_shapes, axis=0)), dtype=out_dtype)
+    arrs = [xp.broadcast_to(a, batch_shape + a.shape[-2:]) for a in arrs]
+    out_dtype = xp.result_type(*arrs)
+    block_shapes = [a.shape[-2:] for a in arrs]
+    out = xp.zeros(batch_shape +
+                   tuple(map(int, xp.sum(xp.asarray(block_shapes), axis=0))),
+                   dtype=out_dtype)
 
     r, c = 0, 0
     for i, (rr, cc) in enumerate(block_shapes):
-        out[..., r:r + rr, c:c + cc] = arrs[i]
+        out = xpx.at(out)[..., r:r+rr, c:c+cc].set(arrs[i])
         r += rr
         c += cc
     return out
 
 
+@xp_capabilities(np_only=True)
 def companion(a):
     """
     Create a companion matrix.
 
     Create the companion matrix [1]_ associated with the polynomial whose
     coefficients are given in `a`.
+
+    Array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
 
     Parameters
     ----------
@@ -482,7 +515,7 @@ def companion(a):
 
 def helmert(n, full=False):
     """
-    Create an Helmert matrix of order `n`.
+    Create a Helmert matrix of order `n`.
 
     This has applications in statistics, compositional or simplicial analysis,
     and in Aitchison geometry.
@@ -909,13 +942,17 @@ def dft(n, scale=None):
 
 @xp_capabilities()
 def fiedler(a):
-    """Returns a symmetric Fiedler matrix
+    """Returns a symmetric Fiedler matrix.
 
     Given an sequence of numbers `a`, Fiedler matrices have the structure
     ``F[i, j] = np.abs(a[i] - a[j])``, and hence zero diagonals and nonnegative
     entries. A Fiedler matrix has a dominant positive eigenvalue and other
     eigenvalues are negative. Although not valid generally, for certain inputs,
     the inverse and the determinant can be derived explicitly as given in [1]_.
+
+    Array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
 
     Parameters
     ----------
@@ -980,19 +1017,24 @@ def fiedler(a):
     a = xpx.atleast_nd(xp.asarray(a), ndim=1)
 
     if xp_size(a) == 0:
-        return xp.asarray([], dtype=xp.float64)
+        return xp.empty((0, 0), dtype=xp.float64)
     elif xp_size(a) == 1:
         return xp.asarray([[0.]])
     else:
         return xp.abs(a[..., :, xp.newaxis] - a[..., xp.newaxis, :])
 
 
+@xp_capabilities(np_only=True)
 def fiedler_companion(a):
-    """ Returns a Fiedler companion matrix
+    """Returns a Fiedler companion matrix.
 
     Given a polynomial coefficient array ``a``, this function forms a
     pentadiagonal matrix with a special structure whose eigenvalues coincides
     with the roots of ``a``.
+
+    Array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
 
     Parameters
     ----------
@@ -1051,6 +1093,8 @@ def fiedler_companion(a):
     if a.size <= 2:
         if a.size == 2:
             return np.array([[-(a/a[0])[-1]]])
+        if a.size == 1:
+            return np.empty((0, 0), dtype=a.dtype)
         return np.array([], dtype=a.dtype)
 
     if a[0] == 0.:
@@ -1070,12 +1114,17 @@ def fiedler_companion(a):
     return c
 
 
+@xp_capabilities(np_only=True)
 def convolution_matrix(a, n, mode='full'):
     """
     Construct a convolution matrix.
 
     Constructs the Toeplitz matrix representing one-dimensional
     convolution [1]_.  See the notes below for details.
+
+    Array argument(s) of this function may have additional
+    "batch" dimensions prepended to the core shape. In this case, the array is treated
+    as a batch of lower-dimensional slices; see :ref:`linalg_batch` for details.
 
     Parameters
     ----------

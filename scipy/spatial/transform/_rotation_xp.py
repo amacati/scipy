@@ -9,6 +9,7 @@ that work with any Array API-compatible backend.
 import re
 import warnings
 from types import EllipsisType
+from typing import cast
 
 import numpy as np
 from scipy._lib._array_api import (
@@ -22,9 +23,9 @@ from scipy._lib._array_api import (
     is_jax,
 )
 from scipy._lib._util import broadcastable
-from scipy._lib.array_api_compat import device as xp_device
-from scipy._lib.array_api_compat import is_array_api_obj
-import scipy._lib.array_api_extra as xpx
+from scipy._external.array_api_compat import device as xp_device
+from scipy._external.array_api_compat import is_array_api_obj
+import scipy._external.array_api_extra as xpx
 
 
 def from_quat(
@@ -45,31 +46,48 @@ def from_quat(
     return quat
 
 
-def from_matrix(matrix: Array) -> Array:
+def from_matrix(matrix: Array, assume_valid: bool = False) -> Array:
     xp = array_namespace(matrix)
     device = xp_device(matrix)
-    # Only non-lazy backends raise an error for non-positive determinants.
-    mask = xp.linalg.det(matrix) <= 0
-    lazy = is_lazy_array(mask)
-    if not lazy and xp.any(mask):
-        ind = int(xp.nonzero(xpx.atleast_nd(mask, ndim=1, xp=xp))[0][0])
-        raise ValueError(
-            "Non-positive determinant (left-handed or null coordinate frame) in "
-            f"rotation matrix {ind}: {matrix[ind, ...]}."
-        )
-    elif lazy:
-        matrix = xp.where(mask[..., None, None], xp.nan, matrix)
 
-    gramians = matrix @ xp.matrix_transpose(matrix)
-    # TODO: We need to orthogonalize only the non-orthogonal matrices, but lazy backends
-    # do not support non-concrete boolean indexing or any form of computation without
-    # statically known shapes. We either have to branch depending on lazy/non-lazy
-    # frameworks or pay the performance penalty for the SVD.
-    eye = xp.eye(3, dtype=matrix.dtype, device=device)
-    is_orthogonal = xp.all(xpx.isclose(gramians, eye, atol=1e-12, xp=xp))
-    U, _, Vt = xp.linalg.svd(matrix)
-    orthogonal_matrix = U @ Vt
-    matrix = xp.where(is_orthogonal, matrix, orthogonal_matrix)
+    if not assume_valid:
+        mask = xp.linalg.det(matrix) <= 0
+        lazy = is_lazy_array(mask)
+        # Only non-lazy backends raise an error for non-positive determinants.
+        if not lazy and xp.any(mask):
+            ind = int(xp.nonzero(xpx.atleast_nd(mask, ndim=1, xp=xp))[0][0])
+            raise ValueError(
+                "Non-positive determinant (left-handed or null coordinate frame) in "
+                f"rotation matrix {ind}: {matrix[ind, ...]}."
+            )
+        elif lazy:
+            matrix = xp.where(mask[..., None, None], xp.nan, matrix)
+
+        gramians = matrix @ matrix.mT
+        eye = xp.eye(3, dtype=matrix.dtype, device=device)
+        is_orthogonal = xp.all(
+            xpx.isclose(gramians, eye, atol=1e-12, xp=xp), axis=(-2, -1)
+        )
+
+        if lazy:
+            # Lazy backends do not support non-concrete boolean indexing or any form of
+            # computation without statically known shapes, so we always compute SVD and
+            # use xp.where to select the result.
+            U, _, Vt = xp.linalg.svd(matrix, full_matrices=False)
+            matrix = xp.where(is_orthogonal[..., None, None], matrix, U @ Vt)
+        elif not xp.all(is_orthogonal):
+            # For eager frameworks, only compute SVD if needed.
+            is_not_orthogonal = ~is_orthogonal
+            U, _, Vt = xp.linalg.svd(matrix[is_not_orthogonal], full_matrices=False)
+            matrix = xpx.at(matrix)[is_not_orthogonal].set(U @ Vt)
+
+    return _from_matrix_orthogonal(matrix)
+
+
+def _from_matrix_orthogonal(matrix: Array) -> Array:
+    """Convert known orthogonal rotation matrix to quaternion"""
+    xp = array_namespace(matrix)
+    device = xp_device(matrix)
 
     matrix_trace = matrix[..., 0, 0] + matrix[..., 1, 1] + matrix[..., 2, 2]
     decision = xp.stack(
@@ -205,7 +223,7 @@ def from_euler(seq: str, angles: Array, degrees: bool = False) -> Array:
 
 
 def from_davenport(
-    axes: Array, order: str, angles: Array | float, degrees: bool = False
+    axes: Array, order: str, angles: Array, degrees: bool = False
 ) -> Array:
     xp = array_namespace(axes)
     device = xp_device(axes)
@@ -223,8 +241,10 @@ def from_davenport(
         raise ValueError("Axes must be vectors of length 3.")
 
     axes = xpx.atleast_nd(axes, ndim=2, xp=xp)
-    angles = xpx.atleast_nd(angles, ndim=1, xp=xp)
+    angles = xpx.atleast_nd(angles, ndim=1, xp=xp) 
     num_axes = axes.shape[-2]
+    if num_axes is None:
+        raise ValueError(f"axes must have a known shape, got shape {axes.shape}")
     if num_axes < 1 or num_axes > 3:
         raise ValueError(f"Expected up to 3 axes, got {num_axes}")
 
@@ -250,7 +270,7 @@ def from_davenport(
         angles = _deg2rad(angles)
 
     if (
-        not broadcastable(axes.shape[:-1], angles.shape)
+        not broadcastable(axes.shape[:-1], cast(tuple[int, ...], angles.shape))
         or axes.shape[-2] != angles.shape[-1]
     ):
         raise ValueError(
@@ -383,7 +403,7 @@ def as_euler(
 
 def as_davenport(
     quat: Array,
-    axes: ArrayLike,
+    axes: Array,
     order: str,
     degrees: bool = False,
     *,
@@ -470,18 +490,38 @@ def approx_equal(
     return angles < atol
 
 
-def mean(quat: Array, weights: ArrayLike | None = None) -> Array:
+def mean(
+    quat: Array,
+    weights: ArrayLike | None = None,
+    axis: None | int | tuple[int, ...] = None,
+) -> Array:
     xp = array_namespace(quat)
     device = xp_device(quat)
     dtype = xp_result_type(quat, force_floating=True, xp=xp)
     if quat.shape[0] == 0:
         raise ValueError("Mean of an empty rotation set is undefined.")
+    # Axis logic: For None, we reduce over all axes. For int, we only reduce over that
+    # axis. For tuple, we reduce over all specified axes.
+    all_axes = tuple(range(quat.ndim - 1))
+    if axis is None:
+        axis = all_axes
+    elif isinstance(axis, int):
+        axis = (axis,)
+    if not isinstance(axis, tuple):
+        raise ValueError("`axis` must be None, int, or tuple of ints.")
+    # Ensure all axes are within bounds
+    if axis != () and (min(axis) < -(quat.ndim - 1) or max(axis) > (quat.ndim - 2)):
+        raise ValueError(
+            f"axis {axis} is out of bounds for rotation with shape {quat.shape[:-1]}."
+        )
+    # Ensure all axes are positive and unique
+    axis = tuple(sorted(set(x % (quat.ndim - 1) for x in axis)))
 
     lazy = is_lazy_array(quat)
     # Branching code is okay for checks that include meta info such as shapes and types
+    quat_expand = quat[..., None, :]
     if weights is None:
-        quat = xpx.atleast_nd(quat, ndim=2, xp=xp)
-        K = xp.matrix_transpose(quat) @ quat  # TODO: Replace with .mT
+        K = quat_expand.mT @ quat_expand
     else:
         weights = xp.asarray(weights, dtype=dtype, device=device)
         neg_weights = weights < 0
@@ -492,16 +532,23 @@ def mean(quat: Array, weights: ArrayLike | None = None) -> Array:
             # non-branching. We return NaN instead
             weights = xp.where(neg_weights, xp.nan, weights)
 
-        if weights.shape != quat.shape[:-1]:
+        if not broadcastable(quat.shape[:-1], weights.shape):
             raise ValueError(
-                f"Expected `weights` to match rotation shape, got shape {weights.shape}"
-                f" for {quat.shape[:-1]} rotations."
+                "Expected `weights` to be broadcastable to rotation shape, got shape "
+                f"{weights.shape} for {quat.shape[:-1]} rotations."
             )
 
         # Make sure we can transpose quat
-        quat = xpx.atleast_nd(quat, ndim=2, xp=xp)
-        K = xp.matrix_transpose(weights[..., None] * quat) @ quat
+        weighted_quat = weights[..., None, None] * quat_expand
+        K = weighted_quat.mT @ quat_expand
 
+    # Move reduction axes to the end
+    keep_axes = tuple(i for i in all_axes if i not in axis)
+    axes_order = keep_axes + axis
+    K_reordered = xp.moveaxis(K, axes_order, all_axes)
+    # Reshape to flatten reduction axes
+    new_shape = K_reordered.shape[: len(keep_axes)] + (-1, 4, 4)
+    K = xp.mean(xp.reshape(K_reordered, new_shape), axis=-3)
     _, v = xp.linalg.eigh(K)
     return v[..., -1]
 
@@ -515,7 +562,7 @@ def reduce(
         return quat, None, None
     # DECISION: We cannot have variable number of return arguments for jit compiled
     # functions. We therefore always return the indices, and filter out later.
-    # TOOD: Properly support broadcasting.
+    # TODO: Properly support broadcasting.
     xp = array_namespace(quat)
     quat = xpx.atleast_nd(quat, ndim=2, xp=xp)
     if left is None:
@@ -582,7 +629,6 @@ def reduce(
 
 
 def apply(quat: Array, points: Array, inverse: bool = False) -> Array:
-    xp = array_namespace(quat)
     mat = as_matrix(quat)
     # We do not have access to einsum. To avoid broadcasting issues, we add a singleton
     # dimension to the points array and remove it after the operation.
@@ -593,13 +639,12 @@ def apply(quat: Array, points: Array, inverse: bool = False) -> Array:
             "vectors."
         )
     if inverse:
-        # TODO: Replace with .mT once numpy 2.0 is the minimum supported version
-        return (xp.matrix_transpose(mat) @ points)[..., 0]
+        return (mat.mT @ points)[..., 0]
     return (mat @ points)[..., 0]
 
 
 def setitem(
-    quat: Array, value: Array, indexer: int | slice | EllipsisType | None
+    quat: Array, value: Array, indexer: int | slice | EllipsisType
 ) -> Array:
     return xpx.at(quat)[indexer, ...].set(value)
 
@@ -632,7 +677,8 @@ def align_vectors(
             "Expected inputs `a` and `b` to have shape (3,) or (N, 3), got "
             f"{a_original.shape} and {b_original.shape} respectively."
         )
-    N = a.shape[0]
+    if (N := a.shape[0]) is None:
+        raise ValueError(f"Expected `a` to have a known shape, got {a_original.shape}")
 
     # Check weights
     if weights is None:
@@ -677,7 +723,7 @@ def align_vectors(
     # reasons:
     # 1. Computing both for eager execution models is expensive.
     # 2. Some operations will fail when running the unused branch because of numerical
-    # and algorithmical issues. Numpy e.g. will raise an exception when trying to
+    # and algorithmic issues. Numpy e.g. will raise an exception when trying to
     # compute the svd of a matrix with infinite weights. To prevent this, we only
     # compute the branch that is needed. Lazy backends however require us to take the
     # full compute graph. Therefore, we use xp.where for lazy backends and a branching
@@ -731,7 +777,7 @@ def _align_vectors(a: Array, b: Array, weights: Array) -> tuple[Array, Array, Ar
     kappa = s[..., 0] * s[..., 1] + s[..., 1] * s[..., 2] + s[..., 2] * s[..., 0]
     eye = xp.eye(3, dtype=a.dtype, device=device)
     sensitivity = xp.mean(weights) / zeta * (kappa * eye + B @ B.mT)
-    q_opt = from_matrix(C)
+    q_opt = _from_matrix_orthogonal(C)
     return q_opt, rssd, sensitivity
 
 
@@ -882,9 +928,9 @@ def pow(quat: Array, n: float | Array) -> Array:
     # If n is an array, we sanitize it to a scalar and promote quat and n to
     # the same dtype.
     if is_array_api_obj(n):
-        if n.shape == (1,):
-            n = n[0]
-        elif n.ndim != 0:
+        if n.shape == (1,):  # pyrefly:ignore[missing-attribute]
+            n = n[0]  # pyrefly:ignore[bad-index]
+        elif n.ndim != 0:  # pyrefly:ignore[missing-attribute]
             raise ValueError("Array exponent must be a scalar")
         quat, n = xp_promote(quat, n, force_floating=True, xp=xp)
 

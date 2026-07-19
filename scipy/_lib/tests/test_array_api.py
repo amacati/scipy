@@ -3,17 +3,13 @@ import re
 import numpy as np
 import pytest
 
-from importlib import import_module
-
 from scipy._lib._array_api import (
     SCIPY_ARRAY_API, array_namespace, _asarray, xp_copy, xp_assert_equal, is_numpy,
-    np_compat, xp_default_dtype, xp_result_type, is_torch,
-    xp_capabilities_table
+    np_compat, xp_default_dtype, xp_result_type, is_torch, _xp_copy_to_numpy
 )
-from scipy._lib._array_api_docs_tables import is_named_function_like_object
-from scipy._lib import array_api_extra as xpx
+from scipy._external import array_api_extra as xpx
 from scipy._lib._array_api_no_0d import xp_assert_equal as xp_assert_equal_no_0d
-from scipy._lib.array_api_extra.testing import lazy_xp_function
+from scipy._external.array_api_extra.testing import lazy_xp_function
 
 # Run all tests in this module in the Array API CI,
 # including those without the `xp` fixture
@@ -23,6 +19,7 @@ lazy_xp_function(_asarray)
 lazy_xp_function(xp_copy)
 
 
+@pytest.mark.uses_xp_capabilities(False, reason="not applicable")
 @pytest.mark.skipif(not SCIPY_ARRAY_API,
         reason="Array API test; set environment variable SCIPY_ARRAY_API=1 to run it")
 class TestArrayAPI:
@@ -143,6 +140,27 @@ class TestArrayAPI:
                 pass
             else:
                 assert x[0] != y[0]
+
+    @pytest.mark.parametrize(
+        "dtype",
+        ["float32", "float64", "complex64", "complex128", "int32", "int64"],
+    )
+    @pytest.mark.parametrize(
+        "data", [[], 1, [1, 2, 3], [[1, 2], [2, 3]]],
+    )
+    def test_copy_to_numpy(self, xp, data, dtype):
+        xp_dtype = getattr(xp, dtype)
+        np_dtype = getattr(np, dtype)
+        x = xp.asarray(data, dtype=xp_dtype)
+        y = _xp_copy_to_numpy(x)
+        assert isinstance(y, np.ndarray)
+        assert y.dtype == np_dtype
+        assert x.shape == y.shape
+        np.testing.assert_equal(y, np.asarray(data, dtype=np_dtype))
+        if is_numpy(xp):
+            # Ensure y is a copy when xp is numpy.
+            assert id(x) != id(y)
+
     
     @pytest.mark.parametrize('dtype', ['int32', 'int64', 'float32', 'float64'])
     @pytest.mark.parametrize('shape', [(), (3,)])
@@ -158,14 +176,12 @@ class TestArrayAPI:
         if is_numpy(xp):
             xp_assert_equal(x, y, **options)
         else:
+            # `desired` can be of a different namespace
+            # as long as `actual` matches the expectation set by `default_xp`
+            xp_assert_equal(x, y, **options)
             with pytest.raises(
                 AssertionError,
-                match="Namespace of desired array does not match",
-            ):
-                xp_assert_equal(x, y, **options)
-            with pytest.raises(
-                AssertionError,
-                match="Namespace of actual and desired arrays do not match",
+                match="Input does not have the desired array namespace",
             ):
                 xp_assert_equal(y, x, **options)
 
@@ -288,6 +304,7 @@ def is_inexact(x, xp):
 
 @pytest.mark.parametrize('x', scalars + lists + types + arrays)
 @pytest.mark.parametrize('y', scalars + lists + types + arrays)
+@pytest.mark.uses_xp_capabilities(False, reason="not applicable")
 def test_xp_result_type_no_force(x, y, xp):
     # When force_floating==False (default), behavior of `xp_result_type`
     # should match that of `xp.result_type` on the same arguments after
@@ -314,6 +331,7 @@ def test_xp_result_type_no_force(x, y, xp):
 
 @pytest.mark.parametrize('x', scalars + lists + types + arrays)
 @pytest.mark.parametrize('y', scalars + lists + types + arrays)
+@pytest.mark.uses_xp_capabilities(False, reason="not applicable")
 def test_xp_result_type_force_floating(x, y, xp):
     # When `force_floating==True`, behavior of `xp_result_type`
     # should match that of `xp.result_type` with `1.0` appended to the set of
@@ -351,29 +369,3 @@ def test_xp_result_type_force_floating(x, y, xp):
 
     dtype_res = xp_result_type(x, y, force_floating=True, xp=xp)
     assert dtype_res == dtype_ref
-
-# Test that the xp_capabilities decorator has been applied to all
-# functions and function-likes in the public API. Modules will be
-# added to the list of tested_modules below as decorator coverage
-# is added on a module by module basis. It remains for future work
-# to offer similar functionality to xp_capabilities for classes in
-# the public API.
-
-tested_modules = ["scipy.stats"]
-
-
-def collect_public_functions():
-    functions = []
-    for module_name in tested_modules:
-        module = import_module(module_name)
-        for name in module.__all__:
-            obj = getattr(module, name)
-            if not is_named_function_like_object(obj):
-                continue
-            functions.append(pytest.param(obj, id=f"{module_name}.{name}"))
-    return functions
-
-
-@pytest.mark.parametrize("func", collect_public_functions())
-def test_xp_capabilities_coverage(func):
-    assert func in xp_capabilities_table

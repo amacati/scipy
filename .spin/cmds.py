@@ -42,9 +42,11 @@ PROJECT_MODULE = "scipy"
     '--show-build-log', default=False, is_flag=True,
     help="Show build output rather than using a log file")
 @click.option(
-    '--with-scipy-openblas', default=False, is_flag=True,
-    help=("If set, use the `scipy-openblas32` wheel installed into the "
-            "current environment as the BLAS/LAPACK to build against."))
+    "--with-scipy-openblas", type=click.Choice(["32", "64"]),
+    default=None,
+    help=("Use the pre-installed `scipy-openblas{32,64}` wheel installed into the "
+          "current environment as the BLAS/LAPACK to build against.")
+)
 @click.option(
     '--with-accelerate', default=False, is_flag=True,
     help=("If set, use `Accelerate` as the BLAS/LAPACK to build against."
@@ -65,16 +67,20 @@ def build(*, parent_callback, meson_args, jobs, verbose, werror, asan, debug,
           tags, **kwargs):
     """🔧 Build package with Meson/ninja and install
 
-    MESON_ARGS are passed through e.g.:
+    MESON_ARGS can be passed via `--setup-args` e.g.:
 
-    spin build -- -Dpkg_config_path=/lib64/pkgconfig
+        spin build --setup-args=-Dpkg_config_path=/lib64/pkgconfig
 
     The package is installed to build-install
 
-    By default builds for release, to be able to use a debugger set CFLAGS
-    appropriately. For example, for linux use
+    By default builds for release.
+    To use alternative build types, you can set the corresponding flags in `-Dc_args`.
+    For example, for a debug build, use:
 
-    CFLAGS="-O0 -g" spin build
+        spin build --setup-args=-Dc_args="-O0 -g"
+
+    Note that `-Dbuildtype=debug` is not sufficient when using default compilers from
+    conda-forge, as this will not override the `-O2` set by the compiler activation.
     """
     MESON_ARGS = "meson_args"
     MESON_COMPILE_ARGS = "meson_compile_args"
@@ -82,6 +88,9 @@ def build(*, parent_callback, meson_args, jobs, verbose, werror, asan, debug,
 
     meson_compile_args = tuple()
     meson_install_args = tuple()
+
+    # Avoid byte-compiling on every rebuild/reinstall, that's very expensive
+    meson_args += ("-Dpython.bytecompile=-1",)
 
     if sys.platform == "cygwin":
         # Cygwin only has netlib lapack, but can link against
@@ -123,7 +132,7 @@ def build(*, parent_callback, meson_args, jobs, verbose, werror, asan, debug,
         # on a mac you probably want to use accelerate over scipy_openblas
         meson_args = meson_args + ("-Dblas=accelerate", )
     elif with_scipy_openblas:
-        configure_scipy_openblas()
+        configure_scipy_openblas(with_scipy_openblas)
         os.environ['PKG_CONFIG_PATH'] = os.pathsep.join([
                 os.getcwd(),
                 os.environ.get('PKG_CONFIG_PATH', '')
@@ -138,7 +147,8 @@ def build(*, parent_callback, meson_args, jobs, verbose, werror, asan, debug,
         n_cores = cpu_count(only_physical_cores=True)
         jobs = n_cores
 
-    meson_install_args = meson_install_args + ("--tags=" + tags, )
+    meson_install_args += ("--tags=" + tags, )
+    meson_install_args += ("--skip-subprojects",)
 
     if show_build_log:
         verbose = show_build_log
@@ -149,6 +159,10 @@ def build(*, parent_callback, meson_args, jobs, verbose, werror, asan, debug,
                        "jobs": jobs,
                        "verbose": verbose,
                        **kwargs})
+
+
+build_cmd = build
+
 
 @click.option(
     '--durations', '-d', default=None, metavar="NUM_TESTS",
@@ -229,13 +243,12 @@ def test(*, parent_callback, pytest_args, tests, coverage,
                     compilers_config = config['Compilers']
                     cpp = compilers_config['c++']['name']
                     c = compilers_config['c']['name']
-                    fortran = compilers_config['fortran']['name']
-                    if not (c == 'gcc' and cpp == 'gcc' and fortran == 'gcc'):
+                    if not (c == 'gcc' and cpp == 'gcc'):
                         print("SciPy was built with --gcov flag which requires "
                             "LCOV while running tests.\nFurther, LCOV usage "
-                            "requires GCC for C, C++ and Fortran codes in SciPy.\n"
+                            "requires GCC for C and C++ codes in SciPy.\n"
                             "Compilers used currently are:\n"
-                            f"  C: {c}\n  C++: {cpp}\n  Fortran: {fortran}\n"
+                            f"  C: {c}\n  C++: {cpp}\n"
                             "Therefore, exiting without running tests.")
                         exit(1) # Exit because tests will give missing symbol error
 
@@ -299,9 +312,13 @@ def _set_pythonpath(pythonpath):
 def python(*, parent_callback, pythonpath, **kwargs):
     """🐍 Launch Python shell with PYTHONPATH set
 
-    OPTIONS are passed through directly to Python, e.g.:
+    OPTIONS refers to the spin command options (see below).
 
-    spin python -c 'import sys; print(sys.path)'
+    The optional PYTHON_ARGS, which must be separated from the
+    spin command options with `--`, are passed directly through to
+    the Python command.  For example,
+
+    spin python -- -c 'import sys; print(sys.path)'
     """
     _set_pythonpath(pythonpath)
     parent_callback(**kwargs)
@@ -313,9 +330,13 @@ def python(*, parent_callback, pythonpath, **kwargs):
 def ipython(*, parent_callback, pythonpath, **kwargs):
     """💻 Launch IPython shell with PYTHONPATH set
 
-    OPTIONS are passed through directly to IPython, e.g.:
+    OPTIONS refers to the spin command options (see below).
 
-    spin ipython -i myscript.py
+    The optional IPYTHON_ARGS, which must be separated from the
+    spin command options with `--`, are passed directly through to
+    the IPython command.  For example,
+
+    spin ipython -- -i myscript.py
     """
     _set_pythonpath(pythonpath)
     parent_callback(**kwargs)
@@ -345,51 +366,6 @@ def working_dir(new_dir):
         yield
     finally:
         os.chdir(current_dir)
-
-@click.command(context_settings={"ignore_unknown_options": True})
-@meson.build_dir_option
-@click.pass_context
-def mypy(ctx, build_dir=None):
-    """🦆 Run Mypy tests for SciPy
-    """
-    if is_editable_install():
-        click.secho(
-            "Error: Mypy does not work (well) for editable installs",
-            fg="bright_red",
-        )
-        raise SystemExit(1)
-    else:
-        click.secho(
-                "Invoking `build` prior to running mypy tests:",
-                bold=True, fg="bright_green"
-            )
-        ctx.invoke(build)
-
-    try:
-        import mypy.api
-    except ImportError as e:
-        raise RuntimeError(
-            "Mypy not found. Please install it by running "
-            "pip install -r mypy_requirements.txt from the repo root"
-        ) from e
-
-    build_dir = os.path.abspath(build_dir)
-    root = Path(build_dir).parent
-    config = os.path.join(root, "mypy.ini")
-    check_path = PROJECT_MODULE
-    install_dir = meson._get_site_packages(build_dir)
-
-    with working_dir(install_dir):
-        os.environ['MYPY_FORCE_COLOR'] = '1'
-        click.secho(f"mypy.api.run --config-file {config} {check_path}",
-                    bold=True, fg="bright_blue")
-        report, errors, status = mypy.api.run([
-            "--config-file",
-            str(config),
-            check_path,
-        ])
-    print(report, end='')
-    print(errors, end='', file=sys.stderr)
 
 @spin.util.extend_command(test, doc="")
 def smoke_docs(*, parent_callback, pytest_args, **kwargs):
@@ -427,9 +403,9 @@ def smoke_docs(*, parent_callback, pytest_args, **kwargs):
     # prevent obscure error later; cf https://github.com/numpy/numpy/pull/26691/
     if (
         not importlib.util.find_spec("scipy_doctest")
-        or importlib.metadata.version("scipy_doctest") < "1.8.0"
+        or importlib.metadata.version("scipy_doctest") < "2.0.0"
     ):
-        raise ModuleNotFoundError("Please install scipy-doctest>=1.8.0")
+        raise ModuleNotFoundError("Please install scipy-doctest>=2.0.0")
 
     tests = kwargs["tests"]
     if kwargs["submodule"]:
@@ -460,7 +436,7 @@ def smoke_docs(*, parent_callback, pytest_args, **kwargs):
     help="Submodule whose tests to run (cluster, constants, ...)")
 @meson.build_dir_option
 @click.pass_context
-def refguide_check(ctx, build_dir=None, *args, **kwargs):
+def refguide_check(ctx, build_dir, *args, **kwargs):
     """🔧 Run refguide check."""
     click.secho(
             "Invoking `build` prior to running refguide-check:",
@@ -473,7 +449,7 @@ def refguide_check(ctx, build_dir=None, *args, **kwargs):
     install_dir = meson._get_site_packages(build_dir)
 
     cmd = [f'{sys.executable}',
-            os.path.join(root, 'tools', 'refguide_check.py')]
+            os.path.join(root, 'tools', 'refguide', 'refguide_check.py')]
 
     if ctx.params["verbose"]:
         cmd += ['-vvv']
@@ -483,6 +459,11 @@ def refguide_check(ctx, build_dir=None, *args, **kwargs):
 
     os.environ['PYTHONPATH'] = install_dir
     util.run(cmd)
+
+    cmd_numpydoc_lint =  [f'{sys.executable}',
+        os.path.join('tools', 'linting', 'numpydoc_lint.py')
+    ]
+    util.run(cmd_numpydoc_lint)
 
 @click.command()
 @click.argument(
@@ -558,7 +539,10 @@ def notes(ctx_obj, version_args):
         sys.argv = version_args
         log_start = sys.argv[0]
         log_end = sys.argv[1]
-    cmd = ["python", "tools/write_release_and_log.py", f"{log_start}", f"{log_end}"]
+    cmd = [
+        "python", "tools/release/write_release_and_log.py",
+        f"{log_start}", f"{log_end}"
+    ]
     click.secho(' '.join(cmd), bold=True, fg="bright_blue")
     util.run(cmd)
 
@@ -577,7 +561,7 @@ def authors(ctx_obj, revision_args):
         sys.argv = revision_args
         start_revision = sys.argv[0]
         end_revision = sys.argv[1]
-    cmd = ["python", "tools/authors.py", f"{start_revision}..{end_revision}"]
+    cmd = ["python", "tools/release/authors.py", f"{start_revision}..{end_revision}"]
     click.secho(' '.join(cmd), bold=True, fg="bright_blue")
     util.run(cmd)
 
@@ -603,7 +587,7 @@ def lint(ctx, fix, diff_against, files, all, no_cython):
     cmd_prefix = [sys.executable]
 
     cmd_lint = cmd_prefix + [
-        os.path.join('tools', 'lint.py'),
+        os.path.join('tools', 'linting', 'lint.py'),
         f'--diff-against={diff_against}'
     ]
     if files != "":
@@ -617,14 +601,126 @@ def lint(ctx, fix, diff_against, files, all, no_cython):
     util.run(cmd_lint)
 
     cmd_unicode = cmd_prefix + [
-        os.path.join('tools', 'check_unicode.py')
+        os.path.join('tools', 'linting', 'check_unicode.py')
     ]
     util.run(cmd_unicode)
 
     cmd_check_test_name = cmd_prefix + [
-        os.path.join('tools', 'check_test_name.py')
+        os.path.join('tools', 'linting', 'check_test_name.py')
     ]
     util.run(cmd_check_test_name)
+
+
+@click.command()
+@click.option(
+    '--xp-markers', default=False, is_flag=True,
+    help='For each function using `xp_capabilities`, ensure non-numpy backends are '
+         'actually tested')
+@click.option(
+    '--installed-files', default=False, is_flag=True,
+    help='Ensure all test and stub files are installed correctly.')
+@click.option(
+    '--symbol-hiding', default=False, is_flag=True,
+    help='Check whether symbol hiding in extension modules is correct (GCC-only)')
+@click.option(
+    '--loaded-sharedlibs', default=False, is_flag=True,
+    help='Show shared libraries loaded by numpy/scipy imports (see examples '
+         'for options)')
+@click.option(
+    '--no-build', default=False, is_flag=True,
+    help='Build SciPy before running checks')
+@meson.build_dir_option
+@click.argument('extra_args', nargs=-1)
+@click.pass_context
+def check(ctx, xp_markers, installed_files, symbol_hiding, loaded_sharedlibs, no_build,
+          build_dir, extra_args=()):
+    """🔧  Run checks specific to the SciPy code base.
+
+    Exactly one check can be run at once. Example:
+
+      \b
+      $ spin check --xp-markers
+
+    The --loaded-sharedlibs check takes positional arguments for imports to use, and has
+    two options to expand the amount of detail shown:
+
+      \b
+      -s, --show-stdlib      Show Python stdlib extension modules (lib-dynload/)
+      -e, --show-extensions  Show numpy/scipy extension modules
+
+    Examples (see `tools/verify_loaded_sharedlibs.py` for more examples):
+
+      \b
+      $ spin check --loaded-sharedlibs numpy scipy.linalg -- -s
+      $ spin check --loaded-sharedlibs numpy scipy.linalg
+
+      \b
+      numpy pulled in:
+        <prefix>/lib/libffi.so.8.2.0
+        <prefix>/lib/libgcc_s.so.1
+        <prefix>/lib/libgfortran.so.5.0.0
+        <prefix>/lib/libopenblasp-r0.3.30.so
+        <prefix>/lib/libquadmath.so.0.0.0
+        <prefix>/lib/libstdc++.so.6.0.34
+        (4 stdlib + 2 numpy/scipy extension modules hidden)
+
+      \b
+      scipy.linalg pulled in:
+        <prefix>/lib/libcrypto.so.3
+        (12 stdlib + 23 numpy/scipy extension modules hidden)
+
+    """
+    # Checks are typically useful enough to run in CI or maintain a custom script for,
+    # but not deserving of their own top-level command in the spin CLI interface.
+    #
+    # We only run a single check per invocation, since they're so different and not all
+    # checks are expected to pass on all platforms.
+    #
+    # These checks, unlike the `lint` ones, are allowed (but don't have to) require
+    # building or importing `scipy`.
+    options = [xp_markers, installed_files, symbol_hiding, loaded_sharedlibs]
+    if not sum(options) == 1:
+        click.secho(
+            f"Exactly one option to `check` should be given, found {sum(options)} - "
+            "exiting",
+            fg="bright_red",
+        )
+        sys.exit(1)
+
+    if not no_build:
+        click.secho(
+                "Invoking `build` prior to running checks:",
+                bold=True, fg="bright_green"
+            )
+        ctx.invoke(build)
+
+    build_dir = os.path.abspath(build_dir)
+    install_dir = meson._get_site_packages(build_dir)
+    os.environ['PYTHONPATH'] = install_dir
+
+    if xp_markers:
+        os.environ['SCIPY_ARRAY_API'] = '1'
+        cmd = [sys.executable, os.path.join('tools', 'linting', 'check_xp_untested.py')]
+        util.run(cmd)
+
+    if installed_files:
+        cmd = [
+            sys.executable,
+            os.path.join('tools', 'linting', 'check_installation.py'),
+            install_dir,
+        ]
+        util.run(cmd)
+
+    if symbol_hiding:
+        script = os.path.join(os.path.abspath('tools'), 'linting',
+                              'check_pyext_symbol_hiding.sh')
+        util.run([script, install_dir])
+
+    if loaded_sharedlibs:
+        cmd = [sys.executable, os.path.join('tools', 'verify_loaded_sharedlibs.py')]
+        cmd.extend(extra_args)
+        util.run(cmd)
+
 
 # From scipy: benchmarks/benchmarks/common.py
 def _set_mem_rlimit(max_mem=None):
@@ -730,10 +826,15 @@ def _dirty_git_working_dir():
         "'jax.numpy', 'dask.array')."
     )
 )
+@click.option(
+    '--dry-run/--no-dry-run', '-n', default=True,
+    help="Run benchmarks without saving results to disk. "
+)
+@meson.build_option
 @meson.build_dir_option
 @click.pass_context
 def bench(ctx, tests, submodule, compare, verbose, quick,
-          commits, array_api_backend, build_dir=None, *args, **kwargs):
+          commits, array_api_backend, dry_run, build, build_dir, *args, **kwargs):
     """🔧 Run benchmarks.
 
     \b
@@ -769,17 +870,21 @@ def bench(ctx, tests, submodule, compare, verbose, quick,
     if quick:
         bench_args = ['--quick'] + bench_args
 
+    if dry_run:
+        bench_args = ['--dry-run'] + bench_args
+
     if len(array_api_backend) != 0:
         os.environ['SCIPY_ARRAY_API'] = json.dumps(list(array_api_backend))
 
     if not compare:
         # No comparison requested; we build and benchmark the current version
 
-        click.secho(
-            "Invoking `build` prior to running benchmarks:",
-            bold=True, fg="bright_green"
-        )
-        ctx.invoke(build)
+        if build:
+            click.secho(
+                "Invoking `build` prior to running benchmarks:",
+                bold=True, fg="bright_green"
+            )
+            ctx.invoke(build_cmd, build_dir=build_dir)
 
         meson._set_pythonpath(build_dir)
 
@@ -796,10 +901,10 @@ def bench(ctx, tests, submodule, compare, verbose, quick,
             f'Running benchmarks on SciPy {np_ver}',
             bold=True, fg="bright_green"
         )
-        cmd = ['asv', 'run', '--dry-run', '--show-stderr', '--python=same'] + bench_args
+        cmd = ['asv', 'run', '--show-stderr', '--python=same'] + bench_args
         _run_asv(cmd)
     else:
-        # Ensure that we don't have uncommited changes
+        # Ensure that we don't have uncommitted changes
         commit_a, commit_b = [_commit_to_sha(c) for c in commits]
 
         if commit_b == 'HEAD' and _dirty_git_working_dir():
@@ -818,13 +923,10 @@ def bench(ctx, tests, submodule, compare, verbose, quick,
 def configure_scipy_openblas(blas_variant='32'):
     """Create scipy-openblas.pc and scipy/_distributor_init_local.py
 
-    Requires a pre-installed scipy-openblas32 wheel from PyPI.
+    Requires a pre-installed scipy-openblas{32,64} wheel from PyPI.
     """
     basedir = os.getcwd()
     pkg_config_fname = os.path.join(basedir, "scipy-openblas.pc")
-
-    if os.path.exists(pkg_config_fname):
-        return None
 
     module_name = f"scipy_openblas{blas_variant}"
     try:
@@ -841,6 +943,7 @@ def configure_scipy_openblas(blas_variant='32'):
 
     with open(pkg_config_fname, "w", encoding="utf8") as fid:
         fid.write(openblas.get_pkg_config())
+
 
 physical_cores_cache = None
 
@@ -888,7 +991,7 @@ def _cpu_count_affinity(os_cpu_count):
         except NotImplementedError:
             pass
 
-    # On PyPy and possibly other platforms, os.sched_getaffinity does not exist
+    # On some platforms, os.sched_getaffinity does not exist
     # or raises NotImplementedError, let's try with the psutil if installed.
     try:
         import psutil
@@ -902,10 +1005,10 @@ def _cpu_count_affinity(os_cpu_count):
             sys.platform == "linux"
             and os.environ.get("LOKY_MAX_CPU_COUNT") is None
         ):
-            # PyPy does not implement os.sched_getaffinity on Linux which
-            # can cause severe oversubscription problems. Better warn the
-            # user in this particularly pathological case which can wreck
-            # havoc, typically on CI workers.
+            # On Linux no cpu_affinity can cause severe oversubscription
+            # problems. Better warn the user in this particularly
+            # pathological case which can wreck havoc, typically on CI
+            # workers.
             warnings.warn(
                 "Failed to inspect CPU affinity constraints on this system. "
                 "Please install psutil or explicitly set LOKY_MAX_CPU_COUNT.",
@@ -928,6 +1031,69 @@ def _cpu_count_user(os_cpu_count):
 
     return min(cpu_count_affinity, cpu_count_cgroup, cpu_count_loky)
 
+def _count_physical_cores_linux():
+    try:
+        cpu_info = subprocess.run(
+            "lscpu --parse=core".split(), capture_output=True, text=True
+        )
+        cpu_info = cpu_info.stdout.splitlines()
+        cpu_info = {line for line in cpu_info if not line.startswith("#")}
+        return len(cpu_info)
+    except Exception:
+        pass  # fallback to /proc/cpuinfo
+
+    cpu_info = subprocess.run(
+        "cat /proc/cpuinfo".split(), capture_output=True, text=True
+    )
+    cpu_info = cpu_info.stdout.splitlines()
+    cpu_info = {line for line in cpu_info if line.startswith("core id")}
+    return len(cpu_info)
+
+
+def _count_physical_cores_win32():
+    try:
+        cmd = "-Command (Get-CimInstance -ClassName Win32_Processor).NumberOfCores"
+        cpu_info = subprocess.run(
+            f"powershell.exe {cmd}".split(),
+            capture_output=True,
+            text=True,
+        )
+        cpu_info = cpu_info.stdout.splitlines()
+        return int(cpu_info[0])
+    except Exception:
+        pass  # fallback to wmic (older Windows versions; deprecated now)
+
+    cpu_info = subprocess.run(
+        "wmic CPU Get NumberOfCores /Format:csv".split(),
+        capture_output=True,
+        text=True,
+    )
+    cpu_info = cpu_info.stdout.splitlines()
+    cpu_info = [
+        l.split(",")[1] for l in cpu_info if (l and l != "Node,NumberOfCores")
+    ]
+    return sum(map(int, cpu_info))
+
+
+def _count_physical_cores_darwin():
+    cpu_info = subprocess.run(
+        "sysctl -n hw.physicalcpu".split(),
+        capture_output=True,
+        text=True,
+    )
+    cpu_info = cpu_info.stdout
+    return int(cpu_info)
+
+
+def _count_physical_cores_freebsd():
+    cpu_info = subprocess.run(
+        "sysctl -n kern.smp.cores".split(),
+        capture_output=True,
+        text=True,
+    )
+    cpu_info = cpu_info.stdout
+    return int(cpu_info)
+
 def _count_physical_cores():
     """Return a tuple (number of physical cores, exception)
 
@@ -946,33 +1112,13 @@ def _count_physical_cores():
     # Not cached yet, find it
     try:
         if sys.platform == "linux":
-            cpu_info = subprocess.run(
-                "lscpu --parse=core".split(), capture_output=True, text=True
-            )
-            cpu_info = cpu_info.stdout.splitlines()
-            cpu_info = {line for line in cpu_info if not line.startswith("#")}
-            cpu_count_physical = len(cpu_info)
+            cpu_count_physical = _count_physical_cores_linux()
         elif sys.platform == "win32":
-            cpu_info = subprocess.run(
-                "wmic CPU Get NumberOfCores /Format:csv".split(),
-                capture_output=True,
-                text=True,
-            )
-            cpu_info = cpu_info.stdout.splitlines()
-            cpu_info = [
-                l.split(",")[1]
-                for l in cpu_info
-                if (l and l != "Node,NumberOfCores")
-            ]
-            cpu_count_physical = sum(map(int, cpu_info))
+            cpu_count_physical = _count_physical_cores_win32()
         elif sys.platform == "darwin":
-            cpu_info = subprocess.run(
-                "sysctl -n hw.physicalcpu".split(),
-                capture_output=True,
-                text=True,
-            )
-            cpu_info = cpu_info.stdout
-            cpu_count_physical = int(cpu_info)
+            cpu_count_physical = _count_physical_cores_darwin()
+        elif sys.platform.startswith("freebsd"):
+            cpu_count_physical = _count_physical_cores_freebsd()
         else:
             raise NotImplementedError(f"unsupported platform: {sys.platform}")
 

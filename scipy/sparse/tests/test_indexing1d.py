@@ -76,7 +76,12 @@ class TestGetSet1D:
         with pytest.raises(IndexError, match='index (.*) out of (range|bounds)'):
             A.__getitem__((4,))
 
-    def test_setelement(self, spcreator):
+    @pytest.mark.parametrize(
+        "scalar_container",
+        [lambda x: csr_array(np.array([[x]])), np.array, lambda x: x],
+        ids=["sparse", "dense", "scalar"]
+    )
+    def test_setelement(self, spcreator, scalar_container):
         dtype = np.float64
         A = spcreator((12,), dtype=dtype)
         with warnings.catch_warnings():
@@ -85,14 +90,14 @@ class TestGetSet1D:
                 "Changing the sparsity structure of .* is expensive",
                 SparseEfficiencyWarning,
             )
-            A[0] = dtype(0)
-            A[1] = dtype(3)
-            A[8] = dtype(9.0)
-            A[-2] = dtype(7)
-            A[5] = 9
+            A[0] = scalar_container(dtype(0))
+            A[1] = scalar_container(dtype(3))
+            A[8] = scalar_container(dtype(9.0))
+            A[-2] = scalar_container(dtype(7))
+            A[5] = scalar_container(9)
 
-            A[-9,] = dtype(8)
-            A[1,] = dtype(5)  # overwrite using 1-tuple index
+            A[-9,] = scalar_container(dtype(8))
+            A[1,] = scalar_container(dtype(5))  # overwrite using 1-tuple index
 
             for ij in [13, -14, (13,), (14,)]:
                 with pytest.raises(IndexError, match='out of (range|bounds)'):
@@ -333,15 +338,9 @@ class TestSlicingAndFancy1D:
 
     def test_bad_index(self, spcreator):
         A = spcreator(np.zeros(5))
-        with pytest.raises(
-            (IndexError, ValueError, TypeError),
-            match='Index dimension must be 1 or 2|only integers',
-        ):
+        with pytest.raises(IndexError, match='Index dimension must be 1 or 2'):
             A.__getitem__("foo")
-        with pytest.raises(
-            (IndexError, ValueError, TypeError),
-            match='tuple index out of range|only integers',
-        ):
+        with pytest.raises(IndexError, match='tuple index out of range'):
             A.__getitem__((2, "foo"))
 
     def test_fancy_indexing_2darray(self, spcreator):

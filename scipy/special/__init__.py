@@ -91,15 +91,15 @@ Bessel functions
                         complex argument.
    yve               -- Exponentially scaled Bessel function of the second kind \
                         of real order.
+   iv                -- Modified Bessel function of the first kind of real order.
+   ive               -- Exponentially scaled modified Bessel function of the \
+                        first kind.
    kn                -- Modified Bessel function of the second kind of integer \
                         order `n`
    kv                -- Modified Bessel function of the second kind of real order \
                         `v`
    kve               -- Exponentially scaled modified Bessel function of the \
                         second kind.
-   iv                -- Modified Bessel function of the first kind of real order.
-   ive               -- Exponentially scaled modified Bessel function of the \
-                        first kind.
    hankel1           -- Hankel function of the first kind.
    hankel1e          -- Exponentially scaled Hankel function of the first kind.
    hankel2           -- Hankel function of the second kind.
@@ -173,8 +173,8 @@ Derivatives of Bessel functions
 
    jvp  -- Compute nth derivative of Bessel function Jv(z) with respect to `z`.
    yvp  -- Compute nth derivative of Bessel function Yv(z) with respect to `z`.
-   kvp  -- Compute nth derivative of real-order modified Bessel function Kv(z)
    ivp  -- Compute nth derivative of modified Bessel function Iv(z) with respect to `z`.
+   kvp  -- Compute nth derivative of real-order modified Bessel function Kv(z)
    h1vp -- Compute nth derivative of Hankel function H1v(z) with respect to `z`.
    h2vp -- Compute nth derivative of Hankel function H2v(z) with respect to `z`.
 
@@ -198,8 +198,8 @@ universal functions):
 .. autosummary::
    :toctree: generated/
 
-   riccati_jn -- Compute Ricatti-Bessel function of the first kind and its derivative.
-   riccati_yn -- Compute Ricatti-Bessel function of the second kind and its derivative.
+   riccati_jn -- Compute Riccati-Bessel function of the first kind and its derivative.
+   riccati_yn -- Compute Riccati-Bessel function of the second kind and its derivative.
 
 Struve functions
 ----------------
@@ -424,6 +424,8 @@ Gamma and related functions
    gammaincinv  -- Inverse to `gammainc`.
    gammaincc    -- Regularized upper incomplete gamma function.
    gammainccinv -- Inverse to `gammaincc`.
+   log_gammainc -- Log of the regularized lower incomplete gamma function.
+   log_gammaincc -- Log of the regularized upper incomplete gamma function.
    beta         -- Beta function.
    betaln       -- Natural logarithm of absolute value of beta function.
    betainc      -- Incomplete beta integral.
@@ -431,6 +433,7 @@ Gamma and related functions
    betaincinv   -- Inverse function to beta integral.
    betainccinv  -- Inverse of the complemented incomplete beta integral.
    psi          -- The digamma function.
+   digammainv   -- Inverse of the digamma function.
    rgamma       -- Gamma function inverted.
    polygamma    -- Polygamma function n.
    multigammaln -- Returns the log of multivariate gamma, also sometimes called the generalized gamma.
@@ -498,8 +501,8 @@ Ellipsoidal harmonics
 .. autosummary::
    :toctree: generated/
 
-   ellip_harm   -- Ellipsoidal harmonic functions E^p_n(l).
-   ellip_harm_2 -- Ellipsoidal harmonic functions F^p_n(l).
+   ellip_harm   -- Ellipsoidal harmonic functions E^p_n.
+   ellip_harm_2 -- Ellipsoidal harmonic functions F^p_n.
    ellip_normal -- Ellipsoidal harmonic normalization constants gamma^p_n.
 
 Orthogonal polynomials
@@ -735,7 +738,7 @@ Other special functions
    agm         -- Arithmetic, Geometric Mean.
    bernoulli   -- Bernoulli numbers B0..Bn (inclusive).
    binom       -- Binomial coefficient
-   diric       -- Periodic sinc function, also called the Dirichlet function.
+   diric       -- Periodic sinc function, also called the Dirichlet kernel.
    euler       -- Euler numbers E0..En (inclusive).
    expn        -- Exponential integral E_n.
    exp1        -- Exponential integral E_1 of complex argument z.
@@ -826,7 +829,7 @@ __all__ += [
     'logsumexp',
     'softmax',
     'log_softmax',
-    'multigammaln',
+    'multigammaln',  # pyrefly:ignore[bad-dunder-all]
     'ellip_harm',
     'ellip_harm_2',
     'ellip_normal',

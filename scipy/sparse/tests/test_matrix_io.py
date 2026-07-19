@@ -8,7 +8,7 @@ from numpy.testing import assert_equal, assert_
 
 from scipy.sparse import (sparray, csr_array, coo_array, save_npz, load_npz,
                           csc_matrix, csr_matrix, bsr_matrix, dia_matrix,
-                          coo_matrix, dok_matrix)
+                          coo_matrix, dok_matrix, dok_array, lil_matrix, lil_array)
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -75,15 +75,17 @@ def test_sparray_vs_spmatrix():
 
 @pytest.mark.parametrize("value", [0, 1.2])
 @pytest.mark.parametrize("ndim", [1, 2, 3])
-def test_nd_coo_format(ndim, value, tmpdir):
+def test_nd_coo_format(ndim, value):
     A = coo_array([value]).reshape((1,) * ndim)
 
     #save/load array
-    with tmpdir.as_cwd():
-        tmpfile = "f.npz"
-
+    fd, tmpfile = tempfile.mkstemp(suffix='.npz')
+    os.close(fd)
+    try:
         save_npz(tmpfile, A)
         loaded_A = load_npz(tmpfile)
+    finally:
+        os.remove(tmpfile)
 
     assert isinstance(loaded_A, coo_array)
     assert_(loaded_A.shape == A.shape)
@@ -104,24 +106,15 @@ def test_malicious_load():
     finally:
         os.remove(tmpfile)
 
-
-def test_py23_compatibility():
-    # Try loading files saved on Python 2 and Python 3.  They are not
-    # the same, since files saved with SciPy versions < 1.0.0 may
-    # contain unicode.
-
-    a = load_npz(os.path.join(DATA_DIR, 'csc_py2.npz'))
-    b = load_npz(os.path.join(DATA_DIR, 'csc_py3.npz'))
-    c = csc_matrix([[0]])
-
-    assert_equal(a.toarray(), c.toarray())
-    assert_equal(b.toarray(), c.toarray())
-
-def test_implemented_error():
+@pytest.mark.parametrize(
+    "container", [dok_matrix, dok_array, lil_matrix, lil_array]
+)
+def test_implemented_error(container):
     # Attempts to save an unsupported type and checks that an
     # NotImplementedError is raised.
 
-    x = dok_matrix((2,3))
+    x = container((2,3))
     x[0,1] = 1
 
-    assert_raises(NotImplementedError, save_npz, 'x.npz', x)
+    with pytest.raises(NotImplementedError, match="convert.*before saving"):
+        save_npz("x.npz", x)

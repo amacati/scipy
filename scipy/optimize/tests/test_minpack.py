@@ -3,6 +3,8 @@ Unit tests for optimization routines from minpack.py.
 """
 import warnings
 import pytest
+
+from scipy._lib._testutils import IS_WASM
 import threading
 
 from numpy.testing import (assert_, assert_almost_equal, assert_array_equal,
@@ -207,10 +209,12 @@ class TestFSolve:
             fprime=deriv_func)
         assert_array_almost_equal(final_flows, np.ones(4))
 
+    @pytest.mark.xfail(IS_WASM, reason="cannot create thread pool in Pyodide/WASM")
     def test_concurrent_no_gradient(self):
         v = sequence_parallel([self.test_pressure_network_no_gradient] * 10)
         assert all([result is None for result in v])
 
+    @pytest.mark.xfail(IS_WASM, reason="cannot create thread pool in Pyodide/WASM")
     def test_concurrent_with_gradient(self):
         v = sequence_parallel([self.test_pressure_network_with_gradient] * 10)
         assert all([result is None for result in v])
@@ -292,8 +296,8 @@ class TestLeastSq:
         self.x = x
         self.abc = a,b,c
         y_true = a*x**2 + b*x + c
-        np.random.seed(0)
-        self.y_meas = y_true + 0.01*np.random.standard_normal(y_true.shape)
+        rng = np.random.default_rng(123)
+        self.y_meas = y_true + 0.01*rng.standard_normal(y_true.shape)
 
     def residuals(self, p, y, x):
         a,b,c = p
@@ -421,10 +425,12 @@ class TestLeastSq:
         # low precision due to random
         assert_array_almost_equal(params_fit, self.abc, decimal=2)
 
+    @pytest.mark.xfail(IS_WASM, reason="cannot create process pool in Pyodide/WASM")
     def test_concurrent_no_gradient(self):
         v = sequence_parallel([self.test_basic] * 10)
         assert all([result is None for result in v])
 
+    @pytest.mark.xfail(IS_WASM, reason="cannot create process pool in Pyodide/WASM")
     def test_concurrent_with_gradient(self):
         v = sequence_parallel([self.test_basic_with_gradient] * 10)
         assert all([result is None for result in v])
@@ -875,10 +881,10 @@ class TestCurveFit:
             e = np.exp(-b*x)
             return np.vstack((e, -a * x * e)).T
 
-        np.random.seed(0)
+        rng = np.random.default_rng(123)
         xdata = np.linspace(0, 4, 50)
         y = func(xdata, 2.5, 1.3)
-        ydata = y + 0.2 * np.random.normal(size=len(xdata))
+        ydata = y + 0.2 * rng.standard_normal(size=len(xdata))
 
         sigma = np.zeros(len(xdata)) + 0.2
         covar = np.diag(sigma**2)
@@ -915,10 +921,10 @@ class TestCurveFit:
             e = np.exp(-b*x)
             return np.vstack((e, -a * x * e)).T
 
-        rng = np.random.RandomState(0)
+        rng = np.random.default_rng(1234)
         xdata = np.arange(1, 4)
         y = func(xdata, 2.5, 1.0)
-        ydata = y + 0.2 * rng.normal(size=len(xdata))
+        ydata = y + 0.2 * rng.standard_normal(size=len(xdata))
         sigma = np.zeros(len(xdata)) + 0.2
         covar = np.diag(sigma**2)
         # Get a rotation matrix, and obtain ydatap = R ydata
@@ -940,8 +946,8 @@ class TestCurveFit:
                 popt2, pcov2 = curve_fit(funcp, xdata, ydatap, sigma=covarp,
                         jac=jac2, absolute_sigma=absolute_sigma)
 
-                assert_allclose(popt1, popt2, rtol=1.2e-7, atol=1e-14)
-                assert_allclose(pcov1, pcov2, rtol=1.2e-7, atol=1e-14)
+                assert_allclose(popt1, popt2, rtol=1.4e-7, atol=1e-14)
+                assert_allclose(pcov1, pcov2, rtol=1.5e-7, atol=1e-14)
 
     @pytest.mark.parametrize("absolute_sigma", [False, True])
     def test_curvefit_scalar_sigma(self, absolute_sigma):
@@ -1007,7 +1013,8 @@ class TestCurveFit:
 
     def test_broadcast_y(self):
         xdata = np.arange(10)
-        target = 4.7 * xdata ** 2 + 3.5 * xdata + np.random.rand(len(xdata))
+        rng = np.random.default_rng(123)
+        target = 4.7 * xdata ** 2 + 3.5 * xdata + rng.random(size=len(xdata))
         def fit_func(x, a, b):
             return a * x ** 2 + b * x - target
         for method in ['lm', 'trf', 'dogbox']:

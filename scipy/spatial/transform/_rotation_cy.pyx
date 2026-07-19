@@ -393,22 +393,28 @@ cdef double[:, :] _elementary_quat_compose(
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def from_quat(double[:, :] quat, bint normalize=True, bint copy=True, bint scalar_first=False):
+def from_quat(const double[:, :] quat, bint normalize=True, bint copy=True, bint scalar_first=False):
     if quat.ndim != 2 or quat.shape[1] != 4:
         raise ValueError(f"Expected `quat` to have shape (N, 4), got {quat.shape}.")
 
+    cdef double[:, :] quat_mut  # Non-const to enable in-place normalization
     cdef Py_ssize_t num_rotations = quat.shape[0]
 
     if num_rotations > 0:  # Avoid 0-sized axis errors
         if scalar_first:
-            quat = np.roll(quat, -1, axis=1)
+            quat_mut = np.roll(quat, -1, axis=1)
         elif normalize or copy:
-            quat = quat.copy()
+            quat_mut = quat.copy()
+        else:  
+            # quat is not altered, so we return directly using quat instead of quat_mut
+            return np.asarray(quat, dtype=float)
 
         if normalize:
             for ind in range(num_rotations):
-                if isnan(_normalize4(quat[ind, :])):
+                if isnan(_normalize4(quat_mut[ind, :])):
                     raise ValueError("Found zero norm quaternions in `quat`.")
+
+        return np.asarray(quat_mut, dtype=float)
 
     return np.asarray(quat, dtype=float)
 
@@ -458,7 +464,7 @@ def from_euler(seq, angles, bint degrees=False):
 @cython.embedsignature(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def from_matrix(matrix):
+def from_matrix(matrix, bint assume_valid=False):
     cdef int ind
     is_single = False
     matrix = np.array(matrix, dtype=float)
@@ -475,40 +481,55 @@ def from_matrix(matrix):
         matrix = matrix[np.newaxis, :, :]
         is_single = True
 
-    # Calculate the determinant of the rotation matrix
-    # (should be positive for right-handed rotations)
-    dets = np.linalg.det(matrix)
-    if np.any(dets <= 0):
-        ind = np.where(dets <= 0)[0][0]
-        raise ValueError("Non-positive determinant (left-handed or null "
-                            f"coordinate frame) in rotation matrix {ind}: "
-                            f"{matrix[ind]}.")
+    if not assume_valid:
+        # Calculate the determinant of the rotation matrix
+        # (should be positive for right-handed rotations)
+        dets = np.linalg.det(matrix)
+        if np.any(dets <= 0):
+            ind = np.where(dets <= 0)[0][0]
+            raise ValueError("Non-positive determinant (left-handed or null "
+                                f"coordinate frame) in rotation matrix {ind}: "
+                                f"{matrix[ind]}.")
 
-    # Gramian orthogonality check
-    # (should be the identity matrix for orthogonal matrices)
-    # Note that we have already ruled out left-handed cases above
-    gramians = matrix @ np.transpose(matrix, (0, 2, 1))
-    is_orthogonal = np.all(np.isclose(gramians, np.eye(3), atol=1e-12),
-                            axis=(1, 2))
-    indices_to_orthogonalize = np.where(~is_orthogonal)[0]
+        # Gramian orthogonality check
+        # (should be the identity matrix for orthogonal matrices)
+        # Note that we have already ruled out left-handed cases above
+        gramians = matrix @ np.transpose(matrix, (0, 2, 1))
+        is_orthogonal = np.all(np.isclose(gramians, np.eye(3), atol=1e-12),
+                                axis=(1, 2))
+        indices_to_orthogonalize = np.where(~is_orthogonal)[0]
 
-    # Orthogonalize the rotation matrices where necessary
-    if len(indices_to_orthogonalize) > 0:
-        # Exact solution to the orthogonal Procrustes problem using singular
-        # value decomposition
-        U, _, Vt = np.linalg.svd(matrix[indices_to_orthogonalize, :, :])
-        matrix[indices_to_orthogonalize, :, :] = U @ Vt
+        # Orthogonalize the rotation matrices where necessary
+        if len(indices_to_orthogonalize) > 0:
+            # Exact solution to the orthogonal Procrustes problem using singular
+            # value decomposition
+            U, _, Vt = np.linalg.svd(matrix[indices_to_orthogonalize, :, :])
+            matrix[indices_to_orthogonalize, :, :] = U @ Vt
 
     # Convert the orthogonal rotation matrices to quaternions using the
     # algorithm described in [3]_. This will also apply another
     # orthogonalization step to correct for any small errors in the matrices
     # that skipped the SVD step above.
+    if is_single:
+        return _from_matrix_orthogonal(matrix[0])
+    return _from_matrix_orthogonal(matrix)
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def _from_matrix_orthogonal(matrix):
+    is_single = False
+    if matrix.shape == (3, 3):
+        matrix = matrix[np.newaxis, :, :]
+        is_single = True
+
     cdef double[:, :, :] cmatrix
     cmatrix = matrix
     cdef Py_ssize_t num_rotations = cmatrix.shape[0]
     cdef Py_ssize_t i, j, k
     cdef double[:] decision = _empty1(4)
     cdef int choice
+    cdef int ind
 
     cdef double[:, :] quat = _empty2(num_rotations, 4)
 
@@ -559,7 +580,7 @@ def from_rotvec(rotvec, bint degrees=False):
     # If a single vector is given, convert it to a 2D 1 x 3 matrix but
     # set self._single to True so that we can return appropriate objects
     # in the `as_...` methods
-    cdef double[:, :] crotvec
+    cdef const double[:, :] crotvec
     if rotvec.shape == (3,):
         crotvec = rotvec[None, :]
         is_single = True
@@ -623,8 +644,8 @@ def from_mrp(mrp):
         quat[ind, 3] = (2 - mrp_squared_plus_1) / mrp_squared_plus_1
 
     if is_single:
-        return quat[0]
-    return quat
+        return np.asarray(quat, dtype=float)[0]
+    return np.asarray(quat, dtype=float)
     
 
 @cython.embedsignature(True)
@@ -885,24 +906,36 @@ def inv(double[:, :] quat) -> double[:, :]:
 
 
 @cython.embedsignature(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
 @_transition_to_rng('random_state', position_num=1)
-def random(num=None, rng=None):
+def random(num: int | None = None, rng=None, shape: int | tuple[int, ...] | None = None):
     rng = check_random_state(rng)
-
-    if num is None:
-        sample = rng.normal(size=4)
-    else:
-        sample = rng.normal(size=(num, 4))
-
-    return sample
+    if num is None and shape is None:
+        shape = ()
+    elif num is not None:
+        shape = (num,)
+    elif isinstance(shape, int):
+        shape = (shape,)
+    elif not isinstance(shape, tuple):
+        raise ValueError("`shape` must be an int or a tuple of ints or None.")
+    return rng.normal(size=shape + (4,))
 
 
 @cython.embedsignature(True)
-def identity(num: int | None = None) -> double[:, :]:
-    if num is None:
-        return np.array([0, 0, 0, 1], dtype=np.float64)
-    q = np.zeros((num, 4), dtype=np.float64)
-    q[:, 3] = 1
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def identity(num: int | None, shape: int | tuple[int, ...] | None = None):
+    if num is None and shape is None:
+        shape = ()
+    elif num is not None:
+        shape = (num,)
+    elif isinstance(shape, int):
+        shape = (shape,)
+    elif not isinstance(shape, tuple):
+        raise ValueError("`shape` must be an int or a tuple of ints or None.")
+    q = np.zeros(shape + (4,), dtype=np.float64)
+    q[..., 3] = 1
     return q
 
 
@@ -945,24 +978,43 @@ def approx_equal(double[:, :] quat, double[:, :] other, atol = None, bint degree
 
 @cython.embedsignature(True)
 @cython.boundscheck(False)
-def mean(double[:, :] quat, weights=None):
+def mean(double[:, :] quat, weights=None, axis=None):
     if quat.shape[0] == 0:
         raise ValueError("Mean of an empty rotation set is undefined.")
+    # The Cython path assumes quat is Nx4, so axis has to be None, 0, -1, (0,), (-1,),
+    # or (). The code path is unchanged for any of the options except (), where we
+    # immediately return the quaternion
+    if axis == ():
+        return quat
+
+    if axis is None:
+        axis = (0,)
+    if isinstance(axis, int):
+        axis = (axis,)
+    if not isinstance(axis, tuple):  # Must be tuple by now
+        raise ValueError("`axis` must be None, int, or tuple of ints.")
+    if min(axis) < -1 or max(axis) > 0:
+        raise ValueError(
+            f"axis {axis} is out of bounds for rotation with shape "
+            f"{np.asarray(quat).shape[:-1]}."
+        )
+    # Axis must be 0 for the cython backend. Everything else should have raised an
+    # error during validation.
+    axis = (0,)
 
     if weights is None:
         weights = np.ones(quat.shape[0])
     else:
         weights = np.asarray(weights)
-        if weights.ndim != 1:
-            raise ValueError("Expected `weights` to be 1 dimensional, got "
-                                "shape {}.".format(weights.shape))
-        if weights.shape[0] != quat.shape[0]:
-            raise ValueError("Expected `weights` to have number of values "
-                                "equal to number of rotations, got "
-                                "{} values and {} rotations.".format(
-                                weights.shape[0], quat.shape[0]))
         if np.any(weights < 0):
             raise ValueError("`weights` must be non-negative.")
+        if weights.ndim != 1:
+            raise ValueError(f"Expected `weights` to be 1 dimensional, got "
+                             f"{weights.shape}.")
+        if weights.shape[0] != quat.shape[0]:
+            raise ValueError("Expected `weights` to have number of values equal to "
+                             f"number of rotations, got {weights.shape[0]} values and "
+                             f"{quat.shape[0]} rotations.")
 
     quat = np.asarray(quat)
     K = np.dot(weights * quat.T, quat)
@@ -1023,7 +1075,7 @@ def reduce(double[:, :] quat, left=None, right=None):
 
 @cython.embedsignature(True)
 @cython.boundscheck(False)
-def apply(double[:, :] quat, double[:, :] vectors, bint inverse=False) -> double[:, :]:
+def apply(double[:, :] quat, const double[:, :] vectors, bint inverse=False) -> double[:, :]:
     cdef Py_ssize_t n_vectors = len(vectors)
     cdef Py_ssize_t n_rotations = len(quat)
 
@@ -1227,8 +1279,8 @@ def align_vectors(a, b, weights=None, bint return_sensitivity=False):
         with np.errstate(divide='ignore', invalid='ignore'):
             sensitivity = np.mean(weights) / zeta * (
                     kappa * np.eye(3) + np.dot(B, B.T))
-        return from_matrix(C), rssd, sensitivity
-    return from_matrix(C), rssd, None
+        return _from_matrix_orthogonal(C), rssd, sensitivity
+    return _from_matrix_orthogonal(C), rssd, None
 
 
 @cython.embedsignature(True)
@@ -1243,7 +1295,7 @@ def pow(double[:, :] quat, n) -> double[:, :]:
     elif n == -1:
         return inv(quat)
     elif n == 1:
-        return quat
+        return np.asarray(quat)
     # general scaling of rotation angle
     return from_rotvec(n * as_rotvec(quat))
 

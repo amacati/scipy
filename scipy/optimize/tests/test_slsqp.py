@@ -4,9 +4,7 @@ Unit test for SLSQP optimization.
 from numpy.testing import (assert_, assert_array_almost_equal,
                            assert_allclose, assert_equal)
 from pytest import raises as assert_raises
-import pytest
 import numpy as np
-import scipy
 
 from scipy.optimize import (fmin_slsqp, minimize, Bounds, NonlinearConstraint,
                             OptimizeResult)
@@ -524,9 +522,6 @@ class TestSLSQP:
         assert_(sol.success)
         assert_allclose(sol.x, 0, atol=1e-10)
 
-    @pytest.mark.xfail(scipy.show_config(mode='dicts')['Compilers']['fortran']['name']
-                       == "intel-llvm",
-                       reason="Runtime warning due to floating point issues, not logic")
     def test_inconsistent_inequalities(self):
         # gh-7618
 
@@ -612,7 +607,6 @@ class TestSLSQP:
         assert res.success
 
     def test_gh9640(self):
-        np.random.seed(10)
         cons = ({'type': 'ineq', 'fun': lambda x: -x[0] - x[1] - 3},
                 {'type': 'ineq', 'fun': lambda x: x[1] + x[2] - 2})
         bnds = ((-2, 2), (-2, 2), (-2, 2))
@@ -631,11 +625,12 @@ class TestSLSQP:
         # outside one of the lower/upper bounds. When this happens
         # approx_derivative complains because it's being asked to evaluate
         # a gradient outside its domain.
-        np.random.seed(1)
+
+        # gh21872, removal of random initial position, replacing with specific
+        # starting point, because success/fail depends on the seed used.
         bounds = Bounds(np.array([0.1]), np.array([1.0]))
-        n_inputs = len(bounds.lb)
         x0 = np.array(bounds.lb + (bounds.ub - bounds.lb) *
-                      np.random.random(n_inputs))
+                      0.417022004702574)
 
         def f(x):
             assert (x >= bounds.lb).all()

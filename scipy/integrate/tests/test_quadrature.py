@@ -1,4 +1,3 @@
-# mypy: disable-error-code="attr-defined"
 import pytest
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal, assert_allclose
@@ -14,11 +13,11 @@ from scipy.integrate._quadrature import _cumulative_simpson_unequal_intervals
 
 from scipy import stats, special, integrate
 from scipy.conftest import skip_xp_invalid_arg
-from scipy._lib._array_api import make_xp_test_case, xp_default_dtype
+from scipy._lib._array_api import make_xp_test_case, xp_default_dtype, is_numpy
 from scipy._lib._array_api_no_0d import xp_assert_close, xp_assert_equal
+from scipy._external import array_api_extra as xpx
 
 skip_xp_backends = pytest.mark.skip_xp_backends
-
 
 @make_xp_test_case(fixed_quad)
 class TestFixedQuad:
@@ -27,14 +26,35 @@ class TestFixedQuad:
         expected = 1/(2*n)
         got, _ = fixed_quad(lambda x: x**(2*n - 1), 0, 1, n=n)
         # quadrature exact for this input
-        assert_allclose(got, expected, rtol=1e-12)
+        xp_assert_close(got, np.asarray(expected), rtol=1e-12)
 
-    def test_vector(self):
+    def test_0d(self, xp):
         n = 4
-        p = np.arange(1, 2*n)
+        expected = 1/(2*n)
+        got, _ = fixed_quad(lambda x: x**(2*n - 1), xp.asarray(0.), xp.asarray(1.), n=n)
+        # quadrature exact for this input
+        xp_assert_close(got, xp.asarray(expected), rtol=1e-12)
+
+    @pytest.mark.parametrize('dtype', [None, 'float32', 'float64'])
+    def test_vector(self, dtype, xp):
+        dtype = dtype if dtype is None else getattr(xp, dtype)
+        n = 4
+        p = xp.arange(1., 2*n, dtype=dtype)
+        a, b = xp.asarray(0., dtype=dtype), xp.asarray(1., dtype=dtype)
         expected = 1/(p + 1)
-        got, _ = fixed_quad(lambda x: x**p[:, None], 0, 1, n=n)
-        assert_allclose(got, expected, rtol=1e-12)
+        got, _ = fixed_quad(lambda x, p: x**p[:, xp.newaxis], a, b, args=(p,), n=n)
+        rtol = 1e-12 if dtype == xp.float64 else 2e-7
+        xp_assert_close(got, xp.asarray(expected), rtol=rtol)
+
+    @skip_xp_backends('jax.numpy', reason="lazy -> limited input validation")
+    @skip_xp_backends('dask.array', reason="lazy -> limited input validation")
+    def test_input_validation(self, xp):
+        n = 4
+        message = "Gaussian quadrature is only available for finite limits."
+        with pytest.raises(ValueError, match=message):
+            fixed_quad(lambda x: x**(2*n - 1), xp.asarray(-xp.inf), xp.asarray(1.), n=n)
+        with pytest.raises(ValueError, match=message):
+            fixed_quad(lambda x: x**(2*n - 1), xp.asarray(0.), xp.asarray(xp.inf), n=n)
 
 
 @make_xp_test_case(romb)
@@ -95,26 +115,27 @@ class TestNewtonCotes:
 
 @make_xp_test_case(simpson)
 class TestSimpson:
-    def test_simpson(self):
-        y = np.arange(17)
-        assert_equal(simpson(y), 128)
-        assert_equal(simpson(y, dx=0.5), 64)
-        assert_equal(simpson(y, x=np.linspace(0, 4, 17)), 32)
+
+    def test_simpson(self, xp):
+        y = xp.arange(17.)
+        xp_assert_equal(simpson(y), xp.asarray(128.))
+        xp_assert_equal(simpson(y, dx=0.5), xp.asarray(64.))
+        xp_assert_equal(simpson(y, x=xp.linspace(0., 4., 17)), xp.asarray(32.))
 
         # integral should be exactly 21
-        x = np.linspace(1, 4, 4)
+        x = xp.linspace(1., 4., 4)
         def f(x):
             return x**2
 
-        assert_allclose(simpson(f(x), x=x), 21.0)
+        xp_assert_close(simpson(f(x), x=x), xp.asarray(21.0))
 
         # integral should be exactly 114
-        x = np.linspace(1, 7, 4)
-        assert_allclose(simpson(f(x), dx=2.0), 114)
+        x = xp.linspace(1., 7., 4)
+        xp_assert_close(simpson(f(x), dx=2.0), xp.asarray(114.))
 
         # test multi-axis behaviour
-        a = np.arange(16).reshape(4, 4)
-        x = np.arange(64.).reshape(4, 4, 4)
+        a = np.arange(16.).reshape(4, 4)
+        x = xp.reshape(xp.arange(64.), (4, 4, 4))
         y = f(x)
         for i in range(3):
             r = simpson(y, x=x, axis=i)
@@ -123,19 +144,19 @@ class TestSimpson:
                 idx = list(it.multi_index)
                 idx.insert(i, slice(None))
                 integral = x[tuple(idx)][-1]**3 / 3 - x[tuple(idx)][0]**3 / 3
-                assert_allclose(r[it.multi_index], integral)
+                xp_assert_close(r[it.multi_index], xp.asarray(integral))
 
         # test when integration axis only has two points
-        x = np.arange(16).reshape(8, 2)
+        x = xp.reshape(xp.arange(16.), (8, 2))
         y = f(x)
         r = simpson(y, x=x, axis=-1)
 
         integral = 0.5 * (y[:, 1] + y[:, 0]) * (x[:, 1] - x[:, 0])
-        assert_allclose(r, integral)
+        xp_assert_close(r, xp.asarray(integral))
 
         # odd points, test multi-axis behaviour
         a = np.arange(25).reshape(5, 5)
-        x = np.arange(125).reshape(5, 5, 5)
+        x = xp.reshape(xp.arange(125.), (5, 5, 5))
         y = f(x)
         for i in range(3):
             r = simpson(y, x=x, axis=i)
@@ -144,46 +165,46 @@ class TestSimpson:
                 idx = list(it.multi_index)
                 idx.insert(i, slice(None))
                 integral = x[tuple(idx)][-1]**3 / 3 - x[tuple(idx)][0]**3 / 3
-                assert_allclose(r[it.multi_index], integral)
+                xp_assert_close(r[it.multi_index], xp.asarray(integral))
 
         # Tests for checking base case
-        x = np.array([3])
-        y = np.power(x, 2)
-        assert_allclose(simpson(y, x=x, axis=0), 0.0)
-        assert_allclose(simpson(y, x=x, axis=-1), 0.0)
+        x = xp.asarray([3.])
+        y = x**2
+        xp_assert_close(simpson(y, x=x, axis=0), xp.asarray(0.0))
+        xp_assert_close(simpson(y, x=x, axis=-1), xp.asarray(0.0))
 
-        x = np.array([3, 3, 3, 3])
-        y = np.power(x, 2)
-        assert_allclose(simpson(y, x=x, axis=0), 0.0)
-        assert_allclose(simpson(y, x=x, axis=-1), 0.0)
+        x = xp.asarray([3., 3., 3., 3.])
+        y = x**2
+        xp_assert_close(simpson(y, x=x, axis=0), xp.asarray(0.0))
+        xp_assert_close(simpson(y, x=x, axis=-1), xp.asarray(0.0))
 
-        x = np.array([[1, 2, 4, 8], [1, 2, 4, 8], [1, 2, 4, 8]])
-        y = np.power(x, 2)
-        zero_axis = [0.0, 0.0, 0.0, 0.0]
-        default_axis = [170 + 1/3] * 3   # 8**3 / 3 - 1/3
-        assert_allclose(simpson(y, x=x, axis=0), zero_axis)
+        x = xp.asarray([[1., 2., 4., 8.], [1., 2., 4., 8.], [1., 2., 4., 8.]])
+        y = x**2
+        zero_axis = xp.asarray([0.0, 0.0, 0.0, 0.0])
+        default_axis = xp.asarray([170 + 1/3] * 3)   # 8**3 / 3 - 1/3
+        xp_assert_close(simpson(y, x=x, axis=0), zero_axis)
         # the following should be exact
-        assert_allclose(simpson(y, x=x, axis=-1), default_axis)
+        xp_assert_close(simpson(y, x=x, axis=-1), default_axis)
 
-        x = np.array([[1, 2, 4, 8], [1, 2, 4, 8], [1, 8, 16, 32]])
-        y = np.power(x, 2)
-        zero_axis = [0.0, 136.0, 1088.0, 8704.0]
-        default_axis = [170 + 1/3, 170 + 1/3, 32**3 / 3 - 1/3]
-        assert_allclose(simpson(y, x=x, axis=0), zero_axis)
-        assert_allclose(simpson(y, x=x, axis=-1), default_axis)
+        x = xp.asarray([[1., 2., 4., 8.], [1., 2., 4., 8.], [1., 8., 16., 32.]])
+        y = x**2
+        zero_axis = xp.asarray([0.0, 136.0, 1088.0, 8704.0])
+        default_axis = xp.asarray([170 + 1/3, 170 + 1/3, 32**3 / 3 - 1/3])
+        xp_assert_close(simpson(y, x=x, axis=0), zero_axis)
+        xp_assert_close(simpson(y, x=x, axis=-1), default_axis)
 
-
+    @pytest.mark.skip_xp_backends('array_api_strict', reason="no int->float promotion")
     @pytest.mark.parametrize('droplast', [False, True])
-    def test_simpson_2d_integer_no_x(self, droplast):
+    def test_simpson_2d_integer_no_x(self, droplast, xp):
         # The inputs are 2d integer arrays.  The results should be
         # identical to the results when the inputs are floating point.
-        y = np.array([[2, 2, 4, 4, 8, 8, -4, 5],
-                      [4, 4, 2, -4, 10, 22, -2, 10]])
+        y = xp.asarray([[2, 2, 4, 4, 8, 8, -4, 5],
+                        [4, 4, 2, -4, 10, 22, -2, 10]])
         if droplast:
             y = y[:, :-1]
         result = simpson(y, axis=-1)
-        expected = simpson(np.array(y, dtype=np.float64), axis=-1)
-        assert_equal(result, expected)
+        expected = simpson(xp.asarray(y, dtype=xp_default_dtype(xp)), axis=-1)
+        xp_assert_equal(result, expected)
 
 
 @make_xp_test_case(cumulative_trapezoid)
@@ -276,11 +297,11 @@ class TestCumulative_trapezoid:
             cumulative_trapezoid(y=xp.asarray([]))
 
 
-@make_xp_test_case(trapezoid)
-class TestTrapezoid:
+class CommonTrapezoidSimpsonTests:
     def test_simple(self, xp):
         x = xp.arange(-10, 10, .1)
-        r = trapezoid(xp.exp(-.5 * x ** 2) / xp.sqrt(2 * xp.asarray(xp.pi)), dx=0.1)
+        r = self.quadrature_func(xp.exp(-.5 * x ** 2) / xp.sqrt(2 * xp.asarray(xp.pi)),
+                                 dx=0.1)
         # check integral of normal equals 1
         xp_assert_close(r, xp.asarray(1.0))
 
@@ -290,14 +311,14 @@ class TestTrapezoid:
         z = xp.linspace(0, 3, 13)
 
         wx = xp.ones_like(x) * (x[1] - x[0])
-        wx[0] /= 2
-        wx[-1] /= 2
+        wx = xpx.at(wx)[0].divide(2)
+        wx = xpx.at(wx)[-1].divide(2)
         wy = xp.ones_like(y) * (y[1] - y[0])
-        wy[0] /= 2
-        wy[-1] /= 2
+        wy = xpx.at(wy)[0].divide(2)
+        wy = xpx.at(wy)[-1].divide(2)
         wz = xp.ones_like(z) * (z[1] - z[0])
-        wz[0] /= 2
-        wz[-1] /= 2
+        wz = xpx.at(wz)[0].divide(2)
+        wz = xpx.at(wz)[-1].divide(2)
 
         q = x[:, None, None] + y[None,:, None] + z[None, None,:]
 
@@ -306,20 +327,31 @@ class TestTrapezoid:
         qz = xp.sum(q * wz[None, None, :], axis=2)
 
         # n-d `x`
-        r = trapezoid(q, x=x[:, None, None], axis=0)
+        r = self.quadrature_func(q, x=x[:, None, None], axis=0)
         xp_assert_close(r, qx)
-        r = trapezoid(q, x=y[None,:, None], axis=1)
+        r = self.quadrature_func(q, x=y[None,:, None], axis=1)
         xp_assert_close(r, qy)
-        r = trapezoid(q, x=z[None, None,:], axis=2)
+        r = self.quadrature_func(q, x=z[None, None,:], axis=2)
         xp_assert_close(r, qz)
 
         # 1-d `x`
-        r = trapezoid(q, x=x, axis=0)
+        r = self.quadrature_func(q, x=x, axis=0)
         xp_assert_close(r, qx)
-        r = trapezoid(q, x=y, axis=1)
+        r = self.quadrature_func(q, x=y, axis=1)
         xp_assert_close(r, qy)
-        r = trapezoid(q, x=z, axis=2)
+        r = self.quadrature_func(q, x=z, axis=2)
         xp_assert_close(r, qz)
+
+@make_xp_test_case(simpson)
+class TestSimpson2(CommonTrapezoidSimpsonTests):
+    # run additional tests without copying/moving classes around
+    def quadrature_func(self, *args, **kwargs):
+        return simpson(*args, **kwargs)
+
+@make_xp_test_case(trapezoid)
+class TestTrapezoid(CommonTrapezoidSimpsonTests):
+    def quadrature_func(self, *args, **kwargs):
+        return trapezoid(*args, **kwargs)
 
     def test_gh21908(self, xp):
         # extended testing for n-dim arrays
@@ -362,7 +394,7 @@ class TestTrapezoid:
         xm = np.ma.array(x, mask=mask)
         assert_allclose(trapezoid(y, xm), r)
 
-    def test_array_like(self):
+    def test_array_like(self):  # array_like is np only
         x = list(range(5))
         y = [t * t for t in x]
         xarr = np.asarray(x, dtype=np.float64)
@@ -374,43 +406,51 @@ class TestTrapezoid:
 
 @make_xp_test_case(qmc_quad)
 class TestQMCQuad:
-    def test_input_validation(self):
+    def test_input_validation(self, xp):
+        a = xp.asarray([0., 0.])
+        b = xp.asarray([1., 1.])
+
         message = "`func` must be callable."
         with pytest.raises(TypeError, match=message):
-            qmc_quad("a duck", [0, 0], [1, 1])
+            qmc_quad("a duck", a, b)
 
         message = "`func` must evaluate the integrand at points..."
         with pytest.raises(ValueError, match=message):
-            qmc_quad(lambda: 1, [0, 0], [1, 1])
+            qmc_quad(lambda: 1, a, b)
 
         def func(x):
             assert x.ndim == 1
-            return np.sum(x)
+            return xp.sum(x)
         message = "Exception encountered when attempting vectorized call..."
-        with pytest.warns(UserWarning, match=message):
-            qmc_quad(func, [0, 0], [1, 1])
+        if is_numpy(xp):
+            with pytest.warns(UserWarning, match=message):
+                qmc_quad(func, a, b)
+        else:
+            with pytest.raises(ValueError, match=message):
+                qmc_quad(func, a, b)
 
         message = "`n_points` must be an integer."
         with pytest.raises(TypeError, match=message):
-            qmc_quad(lambda x: 1, [0, 0], [1, 1], n_points=1024.5)
+            qmc_quad(lambda x: 1, a, b, n_points=1024.5)
 
         message = "`n_estimates` must be an integer."
         with pytest.raises(TypeError, match=message):
-            qmc_quad(lambda x: 1, [0, 0], [1, 1], n_estimates=8.5)
+            qmc_quad(lambda x: 1, a, b, n_estimates=8.5)
 
         message = "`qrng` must be an instance of scipy.stats.qmc.QMCEngine."
         with pytest.raises(TypeError, match=message):
-            qmc_quad(lambda x: 1, [0, 0], [1, 1], qrng="a duck")
+            qmc_quad(lambda x: 1, a, b, qrng="a duck")
 
         message = "`qrng` must be initialized with dimensionality equal to "
         with pytest.raises(ValueError, match=message):
-            qmc_quad(lambda x: 1, [0, 0], [1, 1], qrng=stats.qmc.Sobol(1))
+            qmc_quad(lambda x: 1, a, b, qrng=stats.qmc.Sobol(1))
 
         message = r"`log` must be boolean \(`True` or `False`\)."
         with pytest.raises(TypeError, match=message):
-            qmc_quad(lambda x: 1, [0, 0], [1, 1], log=10)
+            qmc_quad(lambda x: 1, a, b, log=10)
 
-    def basic_test(self, n_points=2**8, n_estimates=8, signs=None):
+    def basic_test(self, n_points=2**8, n_estimates=8, signs=None, xp=None):
+        dtype = xp_default_dtype(xp)
         if signs is None:
             signs = np.ones(2)
         ndim = 2
@@ -418,44 +458,47 @@ class TestQMCQuad:
         cov = np.eye(ndim)
 
         def func(x):
-            return stats.multivariate_normal.pdf(x.T, mean, cov)
+            # standard multivariate normal PDF in two dimensions
+            return xp.exp(-0.5 * xp.sum(x*x, axis=0)) / (2 * xp.pi)
 
         rng = np.random.default_rng(2879434385674690281)
         qrng = stats.qmc.Sobol(ndim, seed=rng)
         a = np.zeros(ndim)
         b = np.ones(ndim) * signs
-        res = qmc_quad(func, a, b, n_points=n_points,
-                       n_estimates=n_estimates, qrng=qrng)
+        res = qmc_quad(func, xp.asarray(a, dtype=dtype), xp.asarray(b, dtype=dtype),
+                       n_points=n_points, n_estimates=n_estimates, qrng=qrng)
         ref = stats.multivariate_normal.cdf(b, mean, cov, lower_limit=a)
         atol = special.stdtrit(n_estimates-1, 0.995) * res.standard_error  # 99% CI
-        assert_allclose(res.integral, ref, atol=atol)
+        xp_assert_close(res.integral, xp.asarray(ref, dtype=dtype), atol=atol)
         assert np.prod(signs)*res.integral > 0
 
         rng = np.random.default_rng(2879434385674690281)
         qrng = stats.qmc.Sobol(ndim, seed=rng)
-        logres = qmc_quad(lambda *args: np.log(func(*args)), a, b,
+        logres = qmc_quad(lambda *args: xp.log(func(*args)),
+                          xp.asarray(a, dtype=dtype), xp.asarray(b, dtype=dtype),
                           n_points=n_points, n_estimates=n_estimates,
                           log=True, qrng=qrng)
-        assert_allclose(np.exp(logres.integral), res.integral, rtol=1e-14)
-        assert np.imag(logres.integral) == (np.pi if np.prod(signs) < 0 else 0)
-        assert_allclose(np.exp(logres.standard_error),
-                        res.standard_error, rtol=1e-14, atol=1e-16)
+        rtol = 1e-14 if res.integral.dtype == xp.float64 else 2e-6
+        xp_assert_close(xp.real(xp.exp(logres.integral)), res.integral, rtol=rtol)
+        assert xp.imag(logres.integral + 0j) == (xp.pi if np.prod(signs) < 0 else 0)
+        xp_assert_close(xp.exp(logres.standard_error),
+                        res.standard_error, rtol=rtol, atol=rtol/100)
 
     @pytest.mark.parametrize("n_points", [2**8, 2**12])
     @pytest.mark.parametrize("n_estimates", [8, 16])
-    def test_basic(self, n_points, n_estimates):
-        self.basic_test(n_points, n_estimates)
+    def test_basic(self, n_points, n_estimates, xp):
+        self.basic_test(n_points, n_estimates, xp=xp)
 
-    @pytest.mark.parametrize("signs", [[1, 1], [-1, -1], [-1, 1], [1, -1]])
-    def test_sign(self, signs):
-        self.basic_test(signs=signs)
+    @pytest.mark.parametrize("signs", [[1., 1.], [-1., -1.], [-1., 1.], [1., -1.]])
+    def test_sign(self, signs, xp):
+        self.basic_test(signs=signs, xp=xp)
 
     @pytest.mark.parametrize("log", [False, True])
-    def test_zero(self, log):
+    def test_zero(self, log, xp):
         message = "A lower limit was equal to an upper limit, so"
         with pytest.warns(UserWarning, match=message):
-            res = qmc_quad(lambda x: 1, [0, 0], [0, 1], log=log)
-        assert res.integral == (-np.inf if log else 0)
+            res = qmc_quad(lambda x: 1, xp.asarray([0, 0]), xp.asarray([0, 1]), log=log)
+        assert res.integral == (-xp.inf if log else 0)
         assert res.standard_error == 0
 
     def test_flexible_input(self):

@@ -129,11 +129,10 @@ change is made.
 
 * `scipy.ndimage`
 
-* `scipy.odr`
-
 * `scipy.optimize`
 
   - `scipy.optimize.cython_optimize`
+  - `scipy.optimize.elementwise`
 
 * `scipy.signal`
 
@@ -154,7 +153,6 @@ change is made.
 * `scipy.stats`
 
   - `scipy.stats.contingency`
-  - ``scipy.stats.distributions``
   - `scipy.stats.mstats`
   - `scipy.stats.qmc`
   - `scipy.stats.sampling`
@@ -176,7 +174,6 @@ change is made.
    scipy.io <io>
    scipy.linalg <linalg>
    scipy.ndimage <ndimage>
-   scipy.odr <odr>
    scipy.optimize <optimize>
    scipy.signal <signal>
    scipy.sparse <sparse>

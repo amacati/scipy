@@ -504,6 +504,7 @@ class TestCubature:
             basic_1d_integrand,
             xp.asarray([0], dtype=xp.float32),
             xp.asarray([1], dtype=xp.float32),
+            rtol=1e-7,
             points=[],
             args=(xp.asarray([1], dtype=xp.float32), xp),
         ).estimate.dtype
@@ -971,7 +972,6 @@ class TestCubatureProblems:
                    f"true_error={xp.abs(res.estimate - exact)}")
         assert res.status == "converged", err_msg
 
-    @pytest.mark.skip_xp_backends('jax.numpy', reason=boolean_index_skip_reason)
     @pytest.mark.skip_xp_backends('dask.array', reason=boolean_index_skip_reason)
     @pytest.mark.parametrize("problem", [
         (
@@ -1119,7 +1119,6 @@ class TestCubatureProblems:
             check_0d=False,
         )
 
-    @pytest.mark.skip_xp_backends('jax.numpy', reason=boolean_index_skip_reason)
     @pytest.mark.skip_xp_backends('dask.array', reason=boolean_index_skip_reason)
     @pytest.mark.parametrize("problem", [
         (
@@ -1191,6 +1190,7 @@ class TestCubatureProblems:
         )
 
 
+@pytest.mark.uses_xp_capabilities(False, reason="private")
 class TestRules:
     """
     Tests related to the general Rule interface (currently private).
@@ -1231,6 +1231,7 @@ class TestRules:
                 base_class.estimate(basic_1d_integrand, a, b, args=(xp,))
 
 
+@pytest.mark.uses_xp_capabilities(False, reason="private")
 class TestRulesQuadrature:
     """
     Tests underlying quadrature rules (ndim == 1).
@@ -1303,6 +1304,7 @@ class TestRulesQuadrature:
             quadrature(1, xp=xp)
 
 
+@pytest.mark.uses_xp_capabilities(False, reason="private")
 class TestRulesCubature:
     """
     Tests underlying cubature rules (ndim >= 2).
@@ -1324,8 +1326,8 @@ class TestRulesCubature:
             GenzMalikCubature(1, xp=xp)
 
 
-@pytest.mark.skip_xp_backends('jax.numpy', reason=boolean_index_skip_reason)
 @pytest.mark.skip_xp_backends('dask.array', reason=boolean_index_skip_reason)
+@pytest.mark.uses_xp_capabilities(False, reason="private")
 class TestTransformations:
     @pytest.mark.parametrize(("a", "b", "points"), [
         (

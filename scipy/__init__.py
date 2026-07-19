@@ -20,7 +20,6 @@ Subpackages
  io                           --- Data input and output
  linalg                       --- Linear algebra routines
  ndimage                      --- N-D image package
- odr                          --- Orthogonal Distance Regression
  optimize                     --- Optimization Tools
  signal                       --- Signal Processing Tools
  sparse                       --- Sparse Matrices
@@ -61,18 +60,18 @@ from . import _distributor_init
 del _distributor_init
 
 
-from scipy._lib import _pep440
+from scipy._external.packaging_version.version import Version, parse
 # In maintenance branch, change to np_maxversion N+3 if numpy is at N
-np_minversion = '1.26.4'
+np_minversion = '2.0.0'
 np_maxversion = '9.9.99'
-if (_pep440.parse(__numpy_version__) < _pep440.Version(np_minversion) or
-        _pep440.parse(__numpy_version__) >= _pep440.Version(np_maxversion)):
+if (parse(__numpy_version__) < Version(np_minversion) or
+        parse(__numpy_version__) >= Version(np_maxversion)):
     import warnings
     warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
                   f" is required for this version of SciPy (detected "
                   f"version {__numpy_version__})",
                   UserWarning, stacklevel=2)
-del _pep440
+del Version, parse
 
 
 # This is the first import of an extension module within SciPy. If there's
@@ -105,7 +104,6 @@ submodules = [
     'io',
     'linalg',
     'ndimage',
-    'odr',
     'optimize',
     'signal',
     'sparse',
@@ -129,6 +127,11 @@ def __dir__():
 def __getattr__(name):
     if name in submodules:
         return _importlib.import_module(f'scipy.{name}')
+    elif name == "odr":
+        raise AttributeError(
+            "`scipy.odr` was deprecated in SciPy 1.17 and removed in SciPy 1.19. "
+            "Please use https://pypi.org/project/odrpack/ instead."
+        )
     else:
         try:
             return globals()[name]
