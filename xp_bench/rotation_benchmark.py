@@ -43,26 +43,26 @@ register_pytree_node(R, lambda v: ((v._quat,), None), rot_unflatten)
 
 
 ROTATION_FUNCTIONS = [
-    "from_quat",
-    "from_matrix",
-    "from_rotvec",
-    "from_mrp",
-    "from_euler",
-    "from_davenport",
-    "as_quat",
-    "as_matrix",
-    "as_rotvec",
-    "as_mrp",
-    "as_euler",
-    "as_davenport",
-    "apply",
-    "magnitude",
-    "approx_equal",
-    "mean",
-    "inv",
     "align_vectors",
-    "pow",
+    "apply",
+    "approx_equal",
+    "as_davenport",
+    "as_euler",
+    "as_matrix",
+    "as_mrp",
+    "as_quat",
+    "as_rotvec",
+    "from_davenport",
+    "from_euler",
+    "from_matrix",
+    "from_mrp",
+    "from_quat",
+    "from_rotvec",
+    "inv",
+    "magnitude",
+    "mean",
     "mul",
+    "pow",
     "reduce",
 ]
 
@@ -538,15 +538,15 @@ def benchmark_from_davenport(
         # Create two sets of vectors for Davenport's q-method
         if xp == "jax":
             from_davenport = jax.jit(partial(R.from_davenport, order="e"))
-            jax.block_until_ready(from_davenport(p[0, :], angles=p[:, 0]))
+            jax.block_until_ready(from_davenport(p[0, :], angles=p[:, 0:1]))
 
     def test():
         nonlocal p
-        return R.from_davenport(p[0, :], "e", p[:, 0])
+        return R.from_davenport(p[0, :], "e", p[:, 0:1])
 
     def jax_test():
         nonlocal p, from_davenport
-        jax.block_until_ready(from_davenport(p[0, :], angles=p[:, 0]))
+        jax.block_until_ready(from_davenport(p[0, :], angles=p[:, 0:1]))
 
     timing = benchmark_function(
         setup, test if xp != "jax" else jax_test, repeat, number

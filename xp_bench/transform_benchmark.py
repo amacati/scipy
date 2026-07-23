@@ -16,6 +16,7 @@ from array_api_compat import array_namespace
 import fire
 from jax.tree_util import register_pytree_node
 
+
 def tf_unflatten(_, c):
     # Optimization: We do not want to call __init__ here because it would perform normalizations
     # twice. More importantly, it would call the non-jitted Array API backend and therefore
@@ -37,18 +38,18 @@ register_pytree_node(RigidTransform, lambda v: ((v._matrix,), None), tf_unflatte
 
 
 TRANSFORM_FUNCTIONS = [
+    "apply",
+    "as_components",
+    "as_dual_quat",
+    "as_exp_coords",
+    "as_matrix",
+    "concatenate",
+    "from_components",
+    "from_dual_quat",
+    "from_exp_coords",
     "from_matrix",
     "from_rotation",
     "from_translation",
-    "from_components",
-    "from_exp_coords",
-    "from_dual_quat",
-    "as_matrix",
-    "as_components",
-    "as_exp_coords",
-    "as_dual_quat",
-    "apply",
-    "concatenate",
     "inv",
     "mul",
     "pow",
