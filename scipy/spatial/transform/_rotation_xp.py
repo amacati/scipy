@@ -1112,17 +1112,17 @@ def _get_angles(
 
 def compose_quat(p: Array, q: Array) -> Array:
     xp = array_namespace(p)
-    cross = xp.linalg.cross(p[..., :3], q[..., :3])
-    qx = p[..., 3] * q[..., 0] + q[..., 3] * p[..., 0] + cross[..., 0]
-    qy = p[..., 3] * q[..., 1] + q[..., 3] * p[..., 1] + cross[..., 1]
-    qz = p[..., 3] * q[..., 2] + q[..., 3] * p[..., 2] + cross[..., 2]
-    qw = (
-        p[..., 3] * q[..., 3]
-        - p[..., 0] * q[..., 0]
-        - p[..., 1] * q[..., 1]
-        - p[..., 2] * q[..., 2]
+    px, py, pz, pw = p[..., 0], p[..., 1], p[..., 2], p[..., 3]
+    qx, qy, qz, qw = q[..., 0], q[..., 1], q[..., 2], q[..., 3]
+    quat = xp.stack(
+        [
+            pw * qx + px * qw + py * qz - pz * qy,
+            pw * qy - px * qz + py * qw + pz * qx,
+            pw * qz + px * qy - py * qx + pz * qw,
+            pw * qw - px * qx - py * qy - pz * qz,
+        ],
+        axis=-1,
     )
-    quat = xp.stack([qx, qy, qz, qw], axis=-1)
     return quat
 
 
