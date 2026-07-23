@@ -164,16 +164,17 @@ def from_rotvec(rotvec: Array, degrees: bool = False) -> Array:
 
     angle = xp_vector_norm(rotvec, axis=-1, keepdims=True, xp=xp)
     small_angle = angle <= 1e-3
-    angle2 = angle**2
-    small_scale = 0.5 - angle2 / 48 + angle2**2 / 3840
+    angle2 = angle * angle
+    small_scale = 0.5 - angle2 / 48 + angle2 * angle2 / 3840
     # We need to handle the case where angle is 0 to avoid division by zero. We use the
     # value of the Taylor series approximation, but non-branching operations require
     # that we still divide by the angle. Since we do not use the result where the angle
     # is close to 0, this is safe.
-    div_angle = angle + xp.asarray(small_angle, dtype=angle.dtype)
-    large_scale = xp.sin(angle / 2) / div_angle
+    half_angle = angle / 2
+    div_angle = angle + xp.astype(small_angle, angle.dtype)
+    large_scale = xp.sin(half_angle) / div_angle
     scale = xp.where(small_angle, small_scale, large_scale)
-    quat = xp.concat([rotvec * scale, xp.cos(angle / 2)], axis=-1)
+    quat = xp.concat([rotvec * scale, xp.cos(half_angle)], axis=-1)
     return quat
 
 
