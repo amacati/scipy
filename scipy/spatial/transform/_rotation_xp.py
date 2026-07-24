@@ -164,8 +164,8 @@ def from_rotvec(rotvec: Array, degrees: bool = False) -> Array:
 
     angle = xp_vector_norm(rotvec, axis=-1, keepdims=True, xp=xp)
     small_angle = angle <= 1e-3
-    angle2 = angle * angle
-    small_scale = 0.5 - angle2 / 48 + angle2 * angle2 / 3840
+    angle2 = angle**2
+    small_scale = 0.5 - angle2 / 48 + angle2**2 / 3840
     # We need to handle the case where angle is 0 to avoid division by zero. We use the
     # value of the Taylor series approximation, but non-branching operations require
     # that we still divide by the angle. Since we do not use the result where the angle
@@ -242,7 +242,7 @@ def from_davenport(
         raise ValueError("Axes must be vectors of length 3.")
 
     axes = xpx.atleast_nd(axes, ndim=2, xp=xp)
-    angles = xpx.atleast_nd(angles, ndim=1, xp=xp) 
+    angles = xpx.atleast_nd(angles, ndim=1, xp=xp)
     num_axes = axes.shape[-2]
     if num_axes is None:
         raise ValueError(f"axes must have a known shape, got shape {axes.shape}")
@@ -644,9 +644,7 @@ def apply(quat: Array, points: Array, inverse: bool = False) -> Array:
     return (mat @ points)[..., 0]
 
 
-def setitem(
-    quat: Array, value: Array, indexer: int | slice | EllipsisType
-) -> Array:
+def setitem(quat: Array, value: Array, indexer: int | slice | EllipsisType) -> Array:
     return xpx.at(quat)[indexer, ...].set(value)
 
 
