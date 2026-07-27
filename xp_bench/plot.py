@@ -1,8 +1,21 @@
 from pathlib import Path
+from multiprocessing import Pool
 import json
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import fire
+
+# Color per framework and device combination.
+COLORS = {
+    "torch cpu": "#ff6e34",
+    "torch gpu": "#a41900",
+    "jax cpu": "#51B854",
+    "jax gpu": "#065A09",
+    "cupy gpu": "#9B28AF",
+    "numpy cpu": "#052b59",
+}
 
 
 def load_results(results_dir: Path | str = "rotation_results"):
@@ -33,42 +46,25 @@ def load_results(results_dir: Path | str = "rotation_results"):
     return all_results
 
 
-def plot_results(
-    results_dir: Path | str = "rotation_results", save_path: str = "rotation_plots"
-):
-    """Plot benchmark results, creating a separate figure for each function."""
-    all_results = load_results(Path(__file__).parent / results_dir)
-    save_path = Path(__file__).parent / save_path
+def _plot_one(fn_name, fn_results, results_dir, save_dir):
+    """Render and save the four-panel figure for a single function."""
+    # The panels share axes so that the frameworks stay comparable without
+    # drawing each other's series.
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12), sharex=True, sharey=True)
+    axes = axes.flatten()
 
-    # Define colors for each XP type and device combination
-    colors = {
-        "torch cpu": "#ff6e34",
-        "torch gpu": "#a41900",
-        "jax cpu": "#51B854",
-        "jax gpu": "#065A09",
-        "cupy gpu": "#9B28AF",
-        "numpy cpu": "#052b59",
-    }
+    frameworks = ["numpy", "torch", "jax", "cupy"]
 
-    for fn_name, fn_results in all_results.items():
-        # Create a new figure for each function
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        axes = axes.flatten()
+    for ax, focus_framework in zip(axes, frameworks):
+        for xp, xp_data in sorted(fn_results.items()):
+            baseline = xp.endswith("_baseline")
+            framework = xp.removesuffix("_baseline")
+            native = framework.endswith("_native")
+            framework = framework.removesuffix("_native")
+            if framework != focus_framework:
+                continue
 
-        # Define framework order for subplots
-        frameworks = ["numpy", "torch", "jax", "cupy"]
-
-        # Merge xp and device keys
-        merged_results = {}
-        for xp, xp_data in fn_results.items():
-            for device, device_data in xp_data.items():
-                merged_key = f"{xp} {device}"
-                merged_results[merged_key] = device_data
-
-        for i, focus_framework in enumerate(frameworks):
-            ax = axes[i]
-
-            for xp_device, timings in merged_results.items():
+            for device, timings in sorted(xp_data.items()):
                 means = []
                 std_devs = []
                 for _, timing in sorted(timings.items()):
@@ -76,60 +72,55 @@ def plot_results(
                     std_devs.append(np.std(timing))
                 sample_sizes = [int(s) for s in sorted(timings.keys())]
 
-                # Determine if this is the focus framework
-                is_focus = focus_framework in xp_device
-
-                if is_focus:
-                    color = colors.get(xp_device)
-                    alpha = 1.0
+                if baseline:
+                    label, linestyle = f"{framework} baseline {device}", "--"
+                elif native:
+                    label, linestyle = f"{framework} native {device}", ":"
                 else:
-                    color = "gray"
-                    alpha = 0.3
-
-                if "jax_native" in xp_device:
-                    if focus_framework != "jax":
-                        continue
-                    linestyle = "--"
-                    color = colors.get(xp_device.replace("jax_native", "jax"))
-                else:
-                    linestyle = "-"
+                    label, linestyle = f"{framework} {device}", "-"
 
                 ax.errorbar(
                     sample_sizes,
                     means,
                     yerr=std_devs,
-                    label=xp_device if is_focus else None,
-                    color=color,
-                    alpha=alpha,
+                    label=label,
+                    color=COLORS[f"{framework} {device}"],
                     linestyle=linestyle,
                     marker="o",
                     capsize=5,
                 )
 
-                ax.set_title(f"{fn_name} - {focus_framework.capitalize()}")
-                ax.set_xlabel("Number of samples")
-                ax.set_ylabel("Time (seconds)")
-                ax.grid(True)
-                ax.set_xscale("log")
-                ax.set_yscale("log")
-                if any(focus_framework in key for key in merged_results.keys()):
-                    ax.legend()
+        ax.set_title(f"{fn_name} - {focus_framework.capitalize()}")
+        ax.set_xlabel("Number of samples")
+        ax.set_ylabel("Time (seconds)")
+        ax.grid(True)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        if ax.get_legend_handles_labels()[0]:
+            ax.legend()
 
-        if "rotation" in results_dir:
-            fig.suptitle(f"Rotation.{fn_name}")
-        else:
-            fig.suptitle(f"RigidTransform.{fn_name}")
-        plt.tight_layout()
+    kind = "Rotation" if "rotation" in results_dir else "RigidTransform"
+    fig.suptitle(f"{kind}.{fn_name}")
+    plt.tight_layout()
 
-        if save_path:
-            save_dir = Path(save_path)
-            save_dir.mkdir(parents=True, exist_ok=True)
-            # Save each figure with the function name
-            plt.savefig(save_dir / f"{fn_name}.png", format="png")
-            plt.savefig(save_dir / f"{fn_name}.svg", format="svg")
-            plt.close()
-        else:
-            plt.close()
+    save_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(save_dir / f"{fn_name}.png", format="png")
+    plt.savefig(save_dir / f"{fn_name}.svg", format="svg")
+    plt.close(fig)
+
+
+def plot_results(
+    results_dir: Path | str = "rotation_results", save_path: str = "rotation_plots"
+):
+    """Plot benchmark results, creating a separate figure for each function."""
+    all_results = load_results(Path(__file__).parent / results_dir)
+    save_dir = Path(__file__).parent / save_path
+
+    with Pool() as pool:
+        pool.starmap(
+            _plot_one,
+            [(fn, res, str(results_dir), save_dir) for fn, res in all_results.items()],
+        )
 
 
 def main(rot: bool = True, tf: bool = True):

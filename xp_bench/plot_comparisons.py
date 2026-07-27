@@ -83,8 +83,9 @@ def plot_results(
                     global_ymax = max(global_ymax, max(means))
 
                     color = colors.get(f"{framework} {device}")
-                    label = f"{device} " + ("optimized" if "_no_opt" not in xp else "")
-                    linestyle = "-" if "_no_opt" not in xp else "--"
+                    baseline = "_baseline" in xp
+                    label = f"{device} " + ("baseline" if baseline else "optimized")
+                    linestyle = "--" if baseline else "-"
                     if framework == "jax" and "_native" in xp:
                         label = f"{device} native"
                         linestyle = ":"
@@ -108,7 +109,7 @@ def plot_results(
             ax.set_title(f"{framework} - {fn_name}")
             ax.set_xlabel("Number of samples")
             ax.set_ylabel("Time (seconds)")
-            ax.grid(True)
+            ax.grid(framework == "numpy")
             ax.legend()
             ax.set_xscale("log")
             ax.set_yscale("log")

@@ -55,6 +55,7 @@ ROTATION_FUNCTIONS = [
     "from_davenport",
     "from_euler",
     "from_matrix",
+    "from_matrix_assume_valid",
     "from_mrp",
     "from_quat",
     "from_rotvec",
@@ -284,6 +285,39 @@ def benchmark_from_matrix(
     def test():
         nonlocal matrices
         return R.from_matrix(matrices)
+
+    def jax_test():
+        nonlocal matrices, from_matrix
+        jax.block_until_ready(from_matrix(matrices))
+
+    timing = benchmark_function(
+        setup, test if xp != "jax" else jax_test, repeat, number
+    )
+    return timing
+
+
+def benchmark_from_matrix_assume_valid(
+    xp: str, device: str, n_samples: int, repeat: int, number: int
+) -> Dict[str, float]:
+    """Benchmark from_matrix on valid matrices with assume_valid=True."""
+    print(f"Benchmarking from_matrix_assume_valid with {xp} and {device}")
+    matrices, p, r, from_matrix = None, None, None, None
+
+    def setup() -> str:
+        nonlocal matrices, p, r, from_matrix
+        q, p = create_random_data(n_samples, xp, device)
+        dev = "gpu" if "cuda" in str(q.device).lower() else "cpu"
+        assert dev == device, f"setup device mismatch: {dev} != {device}"
+        r = R.from_quat(q)
+        matrices = r.as_matrix()
+        if xp == "jax":
+            from_matrix = jax.jit(partial(R.from_matrix, assume_valid=True))
+            jax.block_until_ready(from_matrix(matrices))
+        r = R.from_matrix(matrices, assume_valid=True)
+
+    def test():
+        nonlocal matrices
+        return R.from_matrix(matrices, assume_valid=True)
 
     def jax_test():
         nonlocal matrices, from_matrix
@@ -844,6 +878,10 @@ def _benchmark(
             results = benchmark_from_quat(xp, device, n_samples, repeat, number)
         case "from_matrix":
             results = benchmark_from_matrix(xp, device, n_samples, repeat, number)
+        case "from_matrix_assume_valid":
+            results = benchmark_from_matrix_assume_valid(
+                xp, device, n_samples, repeat, number
+            )
         case "from_rotvec":
             results = benchmark_from_rotvec(xp, device, n_samples, repeat, number)
         case "from_mrp":
