@@ -86,6 +86,9 @@ def device_of(array: NDArray) -> str:
 def create_vector(xp: str, device: str, n: int, dtype: str = "float64") -> NDArray:
     if dtype == "bool":
         arr = np.random.rand(n) > 0.5
+        arr[0] = True  # never entirely false (sokalsneath is undefined there)
+        if n > 1:
+            arr[1] = False
     else:
         arr = np.random.rand(n).astype(dtype)
     return to_xp_array(xp, arr, device)
@@ -417,6 +420,9 @@ def run_benchmarks(
                         results = _benchmark(fn, xp, device, n_samples, repeat, number)
                     except (MemoryError, np.core._exceptions._ArrayMemoryError):
                         print(f"Skipping {fn} with {xp} on {device} - Out of Memory")
+                        break
+                    except ValueError as e:
+                        print(f"Skipping {fn} with {xp} on {device} - {e}")
                         break
                     except torch.OutOfMemoryError:
                         print(f"Skipping {fn} with {xp} on {device} - Out of Memory")
