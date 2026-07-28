@@ -99,7 +99,12 @@ def _plot_one(fn_name, fn_results, results_dir, save_dir):
         if ax.get_legend_handles_labels()[0]:
             ax.legend()
 
-    kind = "Rotation" if "rotation" in results_dir else "RigidTransform"
+    if "distance" in results_dir:
+        kind = "distance"
+    elif "rotation" in results_dir:
+        kind = "Rotation"
+    else:
+        kind = "RigidTransform"
     fig.suptitle(f"{kind}.{fn_name}")
     plt.tight_layout()
 
@@ -123,11 +128,13 @@ def plot_results(
         )
 
 
-def main(rot: bool = True, tf: bool = True):
+def main(rot: bool = True, tf: bool = True, dist: bool = False):
     if rot:
         plot_results()
     if tf:
         plot_results(results_dir="tf_results", save_path="tf_plots")
+    if dist:
+        plot_results(results_dir="distance_results", save_path="distance_plots")
 
 
 if __name__ == "__main__":

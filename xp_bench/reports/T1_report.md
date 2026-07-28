@@ -54,7 +54,8 @@ are unchanged (they never touched an array kernel).
 | 1000  | 582 | 77.8 | **52.6** | 403 | 239 | 98.6 |
 | 10000 | — (abort) | 49961 | 3904 | — (abort) | **2589** | 5512 |
 
-![T1 validators scaling](t1_validators.png)
+Scaling is shown in the four-subplot-per-function figures (`distance_plots/is_valid_dm.png`,
+`num_obs_dm.png`), one panel per framework, matching the rotation benchmark layout.
 
 ## Interpretation
 

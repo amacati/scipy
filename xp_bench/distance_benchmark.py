@@ -39,7 +39,7 @@ PAIR_SPECS = {
     "dice": (distance.dice, "bool", True),
     "rogerstanimoto": (distance.rogerstanimoto, "bool", True),
     "russellrao": (distance.russellrao, "bool", True),
-    "sokalsneath": (distance.sokalsneath, "bool", True),
+    "sokalsneath": (distance.sokalsneath, "bool", False),  # data-dependent guard, no jit
 }
 
 # Everything else needs bespoke data (auxiliary matrices, observation matrices, distance
