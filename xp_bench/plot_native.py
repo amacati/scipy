@@ -12,7 +12,7 @@ COLORS = {
 }
 
 data = json.loads((Path(__file__).parent / "native_prototype_results.json").read_text())
-fig, axes = plt.subplots(2, 3, figsize=(16, 9), sharex=True)
+fig, axes = plt.subplots(2, 3, figsize=(16, 9), sharex=True, sharey=True)
 for ax, (cfg, series) in zip(axes.flatten(), data.items()):
     ms = sorted(int(m) for m in series)
     native = [series[str(m)]["native"] * 1e3 for m in ms]
