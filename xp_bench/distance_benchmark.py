@@ -138,6 +138,22 @@ def benchmark_function(
     return np.array(timer.repeat(repeat=R, number=N)) / N
 
 
+def select_test(xp, device, test, jax_test):
+    """Pick the timed callable, synchronizing GPU work.
+
+    torch and cupy launch kernels asynchronously, so an unsynchronized timer measures
+    only the launch, not the computation. We force a device synchronization after the
+    call on GPU. jax uses its own block_until_ready path in `jax_test`.
+    """
+    if xp == "jax":
+        return jax_test
+    if xp == "torch" and device == "gpu":
+        return lambda: (test(), torch.cuda.synchronize())
+    if xp == "cupy":
+        return lambda: (test(), cupy.cuda.Device().synchronize())
+    return test
+
+
 def benchmark_pair(
     call: Callable,
     xp: str,
@@ -169,7 +185,7 @@ def benchmark_pair(
         jax.block_until_ready((jfn if jittable else call)(u, v))
 
     return benchmark_function(
-        setup, jax_test if xp == "jax" else test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
 
@@ -195,7 +211,7 @@ def benchmark_mahalanobis(
         jax.block_until_ready(distance.mahalanobis(u, v, VI))
 
     return benchmark_function(
-        setup, jax_test if xp == "jax" else test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
 
@@ -221,7 +237,7 @@ def benchmark_seuclidean(
         jax.block_until_ready(distance.seuclidean(u, v, V))
 
     return benchmark_function(
-        setup, jax_test if xp == "jax" else test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
 
@@ -243,7 +259,7 @@ def benchmark_pdist(xp: str, device: str, n: int, repeat: int, number: int) -> N
         jax.block_until_ready(distance.pdist(X))
 
     return benchmark_function(
-        setup, jax_test if xp == "jax" else test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
 
@@ -266,7 +282,7 @@ def benchmark_cdist(xp: str, device: str, n: int, repeat: int, number: int) -> N
         jax.block_until_ready(distance.cdist(XA, XB))
 
     return benchmark_function(
-        setup, jax_test if xp == "jax" else test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
 
@@ -290,7 +306,7 @@ def benchmark_squareform(
         jax.block_until_ready(distance.squareform(y))
 
     return benchmark_function(
-        setup, jax_test if xp == "jax" else test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
 
@@ -317,7 +333,7 @@ def _benchmark_validator(
         jax.block_until_ready(call(data))
 
     return benchmark_function(
-        setup, jax_test if xp == "jax" else test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
 

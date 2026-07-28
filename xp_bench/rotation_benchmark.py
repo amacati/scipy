@@ -137,6 +137,22 @@ def benchmark_function(
     return np.array(timer.repeat(repeat=R, number=N)) / N
 
 
+def select_test(xp, device, test, jax_test):
+    """Pick the timed callable, synchronizing GPU work.
+
+    torch and cupy launch kernels asynchronously, so an unsynchronized timer measures
+    only the launch, not the computation. We force a device synchronization after the
+    call on GPU. jax uses its own block_until_ready path in `jax_test`.
+    """
+    if xp == "jax":
+        return jax_test
+    if xp == "torch" and device == "gpu":
+        return lambda: (test(), torch.cuda.synchronize())
+    if xp == "cupy":
+        return lambda: (test(), cupy.cuda.Device().synchronize())
+    return test
+
+
 def benchmark_from_quat(
     xp: str, device: str, n_samples: int, repeat: int, number: int
 ) -> Dict[str, float]:
@@ -162,7 +178,7 @@ def benchmark_from_quat(
         jax.block_until_ready(from_quat(q))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -193,7 +209,7 @@ def benchmark_as_quat(
         jax.block_until_ready(as_quat(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -224,7 +240,7 @@ def benchmark_as_matrix(
         jax.block_until_ready(as_matrix(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
     return timing
@@ -257,7 +273,7 @@ def benchmark_apply(
         jax.block_until_ready(apply(r, p))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
 
     return timing
@@ -291,7 +307,7 @@ def benchmark_from_matrix(
         jax.block_until_ready(from_matrix(matrices))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -324,7 +340,7 @@ def benchmark_from_matrix_assume_valid(
         jax.block_until_ready(from_matrix(matrices))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -357,7 +373,7 @@ def benchmark_from_rotvec(
         jax.block_until_ready(from_rotvec(rotvecs))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -390,7 +406,7 @@ def benchmark_from_mrp(
         jax.block_until_ready(from_mrp(mrps))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -423,7 +439,7 @@ def benchmark_from_euler(
         jax.block_until_ready(from_euler(angles))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -454,7 +470,7 @@ def benchmark_magnitude(
         jax.block_until_ready(magnitude(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -486,7 +502,7 @@ def benchmark_approx_equal(
         jax.block_until_ready(approx_equal(r1, r2))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -517,7 +533,7 @@ def benchmark_mean(
         jax.block_until_ready(mean(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -552,7 +568,7 @@ def benchmark_reduce(
         jax.block_until_ready(reduce(r, left, right))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -583,7 +599,7 @@ def benchmark_from_davenport(
         jax.block_until_ready(from_davenport(p[0, :], angles=p[:, 0:1]))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -614,7 +630,7 @@ def benchmark_as_rotvec(
         jax.block_until_ready(as_rotvec(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -645,7 +661,7 @@ def benchmark_as_mrp(
         jax.block_until_ready(as_mrp(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -676,7 +692,7 @@ def benchmark_as_euler(
         jax.block_until_ready(as_euler(r, seq="xyz"))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -708,7 +724,7 @@ def benchmark_as_davenport(
         jax.block_until_ready(as_davenport(r, axes, order="e"))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -739,7 +755,7 @@ def benchmark_inv(
         jax.block_until_ready(inv(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -771,7 +787,7 @@ def benchmark_align_vectors(
         jax.block_until_ready(align_vectors(v1, v2))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -802,7 +818,7 @@ def benchmark_pow(
         jax.block_until_ready(pow_fn(r, 2.0))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -835,7 +851,7 @@ def benchmark_mul(
         jax.block_until_ready(mul(r1, r2))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 

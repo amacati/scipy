@@ -10,6 +10,7 @@ from scipy.spatial.transform._rigid_transform import xp_backend, backend_registr
 from rotation_benchmark import (
     benchmark_function,
     create_random_data,
+    select_test,
     FRAMEWORKS,
 )
 from array_api_compat import array_namespace
@@ -83,7 +84,7 @@ def benchmark_from_rotation(
         jax.block_until_ready(from_rotation(r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -115,7 +116,7 @@ def benchmark_from_components(
         jax.block_until_ready(from_components(p, r))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -147,7 +148,7 @@ def benchmark_as_matrix(
         jax.block_until_ready(as_matrix(tf))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -179,7 +180,7 @@ def benchmark_as_components(
         jax.block_until_ready(as_components(tf))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -214,7 +215,7 @@ def benchmark_mul(
         jax.block_until_ready(mul(tf1, tf2))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -246,7 +247,7 @@ def benchmark_pow(
         jax.block_until_ready(pow_fn(tf, 2.0))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -279,7 +280,7 @@ def benchmark_from_matrix(
         jax.block_until_ready(from_matrix(matrices))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -309,7 +310,7 @@ def benchmark_from_translation(
         jax.block_until_ready(from_translation(p))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -342,7 +343,7 @@ def benchmark_apply(
         jax.block_until_ready(apply(tf, vectors))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -374,7 +375,7 @@ def benchmark_inv(
         jax.block_until_ready(inv(tf))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -408,7 +409,7 @@ def benchmark_from_exp_coords(
         jax.block_until_ready(from_exp_coords(exp_coords))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -442,7 +443,7 @@ def benchmark_from_dual_quat(
         jax.block_until_ready(from_dual_quat(dual_quat))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -474,7 +475,7 @@ def benchmark_as_exp_coords(
         jax.block_until_ready(as_exp_coords(tf))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -506,7 +507,7 @@ def benchmark_as_dual_quat(
         jax.block_until_ready(as_dual_quat(tf))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
@@ -541,7 +542,7 @@ def benchmark_concatenate(
         jax.block_until_ready(concatenate([tf1, tf2]))
 
     timing = benchmark_function(
-        setup, test if xp != "jax" else jax_test, repeat, number
+        setup, select_test(xp, device, test, jax_test), repeat, number
     )
     return timing
 
