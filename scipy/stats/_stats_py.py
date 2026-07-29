@@ -32,6 +32,7 @@ import operator
 import warnings
 from collections import namedtuple
 from collections.abc import Sequence
+import os
 
 import numpy as np
 from numpy import array, asarray, ma
@@ -1076,7 +1077,7 @@ def _moment_tuple(x, n_out):
 @xp_capabilities(skip_backends=[('dask.array', 'needs axis_nan_policy decorator')],
                  marray=True)
 @_rename_parameter('moment', 'order')
-@_axis_nan_policy_factory(  # noqa: E302
+@_axis_nan_policy_factory(
     _moment_result_object, n_samples=1, result_to_tuple=_moment_tuple,
     n_outputs=_moment_outputs
 )
@@ -8418,9 +8419,12 @@ def kstest(rvs, cdf, args=(), N=20, alternative='two-sided', method='auto', *,
                     axis=axis, _no_deco=True)
 
 
-@xp_capabilities(np_only=True)
+@xp_capabilities(out_of_scope=True)
 def tiecorrect(rankvals):
     """Tie correction factor for Mann-Whitney U and Kruskal-Wallis H tests.
+
+    .. deprecated:: 2.0.0
+        This function is deprecated and will be removed in SciPy 2.2.0.
 
     Parameters
     ----------
@@ -8456,6 +8460,10 @@ def tiecorrect(rankvals):
     0.9833333333333333
 
     """
+    _warn_skips = (os.path.dirname(__file__),)
+    msg = "`tiecorrect` is deprecated and will be removed in SciPy 2.2.0."
+    warnings.warn(msg, DeprecationWarning, skip_file_prefixes=_warn_skips)
+
     arr = np.sort(rankvals)
     idx = np.nonzero(np.r_[True, arr[1:] != arr[:-1], True])[0]
     cnt = np.diff(idx).astype(np.float64)
@@ -10683,7 +10691,7 @@ def _prk(r, k):
                  cpu_only=True,  # torch doesn't have `binom`
                  exceptions=('cupy', 'jax.numpy'),
                  extra_note="Lazy backends do not support `order` greater than 4.")
-@_axis_nan_policy_factory(  # noqa: E302
+@_axis_nan_policy_factory(
     _moment_result_object, n_samples=1, result_to_tuple=_moment_tuple,
     n_outputs=lambda kwds: _moment_outputs(kwds, [1, 2, 3, 4])
 )

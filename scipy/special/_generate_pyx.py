@@ -77,6 +77,7 @@ import re
 import textwrap
 
 special_ufuncs = [
+    "_binom_ppf",
     "_bivariate_normal_sf",
     "_cosine_cdf",
     "_cosine_invcdf",
@@ -110,6 +111,8 @@ special_ufuncs = [
     "agm",
     "airy",
     "airye",
+    "bdtrik",
+    "bdtrin",
     "bei",
     "beip",
     "ber",
@@ -221,6 +224,7 @@ special_ufuncs = [
     "modfresnelm",
     "modfresnelp",
     "modstruve",
+    "nctdtridf",
     "ndtr",
     "ndtri",
     "ndtri_exp",
