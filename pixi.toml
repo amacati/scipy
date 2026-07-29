@@ -43,6 +43,9 @@ blas-devel = "*"
 [package.host-dependencies."if(host_platform == 'win-64')"]
 openblas = "*"
 
+[environments]
+all-frameworks = { features = ["build-deps", "run-deps", "test-deps", "test-cpu", "bench-common", "mkl", "sparse", "array_api_strict", "jax-cuda", "torch-cuda", "marray", "cuda12", "py-cuda", "cupy", "bench-plotting"], solve-group = "all-frameworks" }
+
 
 ### Environments ###
 # We include one build task (and a corresponding environment) per solve group
@@ -907,3 +910,6 @@ gha-tools = "*"
 
 [feature.gha-update.tasks.gha-update]
 cmd = "gha-tools autoupdate ./.github/workflows/ --write --pin all -s specific"
+
+[feature.bench-plotting.dependencies]
+matplotlib = "*"

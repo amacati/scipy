@@ -38,12 +38,14 @@ echo "declaring the all-frameworks environment"
 pixi workspace environment add --manifest-path "$MANIFEST" all-frameworks \
   "${FEATURES[@]/#/--feature=}" --solve-group all-frameworks --force
 
-# Ignoring the whole directory lets the harness be carried across feature branches
-# without ever appearing in `git status`. On the benchmark branch these files are
-# tracked, and tracked files are unaffected by .gitignore, so this is safe there.
-if ! grep -qxF 'xp_bench/' "$ROOT/.gitignore"; then
-  echo "ignoring xp_bench/"
-  printf 'xp_bench/\n' >> "$ROOT/.gitignore"
+# The rule goes in .git/info/exclude rather than .gitignore because that file is per
+# clone instead of per branch. A tracked .gitignore that differs between branches is
+# itself a local modification, which blocks switching, and an ignored xp_bench/ is what
+# lets checkout replace the harness when moving to the branch that tracks it.
+EXCLUDE="$(git -C "$ROOT" rev-parse --git-dir)/info/exclude"
+if ! grep -qxF 'xp_bench/' "$EXCLUDE"; then
+  echo "ignoring xp_bench/ via $EXCLUDE"
+  printf 'xp_bench/\n' >> "$EXCLUDE"
 fi
 
 pixi install --manifest-path "$MANIFEST" -e all-frameworks
