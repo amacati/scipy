@@ -48,7 +48,6 @@ def from_quat(
 
 def from_matrix(matrix: Array, assume_valid: bool = False) -> Array:
     xp = array_namespace(matrix)
-    device = xp_device(matrix)
 
     if not assume_valid:
         mask = xp.linalg.det(matrix) <= 0
@@ -63,12 +62,18 @@ def from_matrix(matrix: Array, assume_valid: bool = False) -> Array:
         elif lazy:
             matrix = xp.where(mask[..., None, None], xp.nan, matrix)
 
-        gramians = matrix @ matrix.mT
-        eye = xp.eye(3, dtype=matrix.dtype, device=device)
         # float32 reduced precision compared to float64 requires a higher threshold
         atol = 1e-12 if matrix.dtype == xp.float64 else 1e-6
-        is_orthogonal = xp.all(
-            xpx.isclose(gramians, eye, atol=atol, xp=xp), axis=(-2, -1)
+        # The rows of a rotation matrix are unit vectors and orthogonal to each other,
+        # which are the entries of the gramian compared against the identity. Comparing
+        # the rows instead needs neither the gramian nor an identity matrix.
+        gramians = matrix @ matrix.mT
+        off_diagonal = xp.maximum(
+            xp.abs(gramians[..., 0, 1]),
+            xp.maximum(xp.abs(gramians[..., 0, 2]), xp.abs(gramians[..., 1, 2])),
+        )
+        is_orthogonal = (off_diagonal <= atol) & xp.all(
+            xpx.isclose(xp.linalg.diagonal(gramians), 1.0, atol=atol, xp=xp), axis=-1
         )
 
         if lazy:
@@ -78,7 +83,7 @@ def from_matrix(matrix: Array, assume_valid: bool = False) -> Array:
             # The results from orthogonal matrices are discarded, so we are free to
             # change the inputs. We use this to our advantage:
             # 1. the SVD of a diagonal matrix is significantly faster than the SVD of a
-            #    dense, generic matrix, so replacing orthogonal inputs with diagonal
+            #    dense, generic matrix, so replacing orthogonal inputs with zero
             #    matrices improves performance of the unnecessary SVDs.
             # 2. The SVD of a matrix with three equal singular values is not
             #    differentiable. Valid rotation matrices fall under this category, so
@@ -86,8 +91,9 @@ def from_matrix(matrix: Array, assume_valid: bool = False) -> Array:
             #    can poison common autograd frameworks. Setting the value of the matrix
             #    before the SVD breaks that chain and prevents NaN gradients. Note that
             #    we do not guarantee gradients, but it is still a notable side-effect.
-            filler = xp.eye(3, dtype=matrix.dtype, device=device)
-            matrix_svd = xp.where(is_orthogonal[..., None, None], filler, matrix)
+            matrix_svd = xp.where(
+                is_orthogonal[..., None, None], xp.zeros_like(matrix), matrix
+            )
             U, _, Vt = xp.linalg.svd(matrix_svd, full_matrices=False)
             matrix = xp.where(is_orthogonal[..., None, None], matrix, U @ Vt)
         elif not xp.all(is_orthogonal):
@@ -377,20 +383,21 @@ def as_euler(
     if any(seq[i] == seq[i + 1] for i in range(2)):
         raise ValueError(f"Expected consecutive axes to be different, got {seq}")
 
-    device = xp_device(quat)
     axes = [_elementary_basis_index(x) for x in seq.lower()]
     axes = axes if extrinsic else axes[::-1]
     i, j, k = axes
     symmetric = i == k
     k = 3 - i - j if symmetric else k
 
-    mask = xp.asarray(symmetric, device=device)
-    sign = xp.asarray((i - j) * (j - k) * (k - i) // 2, dtype=quat.dtype, device=device)
+    sign = (i - j) * (j - k) * (k - i) // 2
     # Permute quaternion elements
-    a = xp.where(mask, quat[..., 3], quat[..., 3] - quat[..., j])
-    b = xp.where(mask, quat[..., i], quat[..., i] + quat[..., k] * sign)
-    c = xp.where(mask, quat[..., j], quat[..., j] + quat[..., 3])
-    d = xp.where(mask, quat[..., k] * sign, quat[..., k] * sign - quat[..., i])
+    if symmetric:
+        a, b, c, d = quat[..., 3], quat[..., i], quat[..., j], quat[..., k] * sign
+    else:
+        a = quat[..., 3] - quat[..., j]
+        b = quat[..., i] + quat[..., k] * sign
+        c = quat[..., j] + quat[..., 3]
+        d = quat[..., k] * sign - quat[..., i]
 
     angles = _get_angles(
         extrinsic, symmetric, sign, xp.pi / 2, a, b, c, d, suppress_warnings
@@ -927,7 +934,6 @@ def _align_vectors_fixed(
 
 def pow(quat: Array, n: float | Array) -> Array:
     xp = array_namespace(quat)
-    device = xp_device(quat)
     # If n is an array, we sanitize it to a scalar and promote quat and n to
     # the same dtype.
     if is_array_api_obj(n):
@@ -941,15 +947,13 @@ def pow(quat: Array, n: float | Array) -> Array:
     if is_lazy_array(n):
         result = _pow_scaled(quat, n)  # general scaling of rotation angle
         # Special cases 0 -> identity, -1 -> inv, 1 -> copy
-        identity = xp.zeros((*quat.shape[:-1], 4), dtype=quat.dtype, device=device)
-        identity = xpx.at(identity)[..., 3].set(1)
+        identity = xpx.at(xp.zeros_like(quat))[..., 3].set(1)
         result = xp.where(n == 0, identity, result)
         result = xp.where(n == -1, inv(quat), result)
         result = xp.where(n == 1, quat, result)
         return result
     if n == 0:
-        identity = xp.zeros((*quat.shape[:-1], 4), dtype=quat.dtype, device=device)
-        return xpx.at(identity)[..., 3].set(1)
+        return xpx.at(xp.zeros_like(quat))[..., 3].set(1)
     if n == -1:
         return inv(quat)
     if n == 1:
@@ -1054,19 +1058,17 @@ def _compute_davenport_from_quat(
 
 def _elementary_quat_compose(axes: list[int], angles: Array, intrinsic: bool) -> Array:
     xp = array_namespace(angles)
-    device = xp_device(angles)
-    quat = _make_elementary_quat(axes[0], angles[..., 0], device=device, xp=xp)
+    quat = _make_elementary_quat(axes[0], angles[..., 0], xp=xp)
     for i in range(1, len(axes)):
-        ax_quat = _make_elementary_quat(axes[i], angles[..., i], device=device, xp=xp)
+        ax_quat = _make_elementary_quat(axes[i], angles[..., i], xp=xp)
         quat = compose_quat(quat, ax_quat) if intrinsic else compose_quat(ax_quat, quat)
     return quat
 
 
-def _make_elementary_quat(axis: int, angle: Array, device, xp) -> Array:
-    quat = xp.zeros((*angle.shape, 4), dtype=angle.dtype, device=device)
-    quat = xpx.at(quat)[..., 3].set(xp.cos(angle / 2.0))
-    quat = xpx.at(quat)[..., axis].set(xp.sin(angle / 2.0))
-    return quat
+def _make_elementary_quat(axis: int, angle: Array, xp) -> Array:
+    components = [xp.zeros_like(angle)] * 3 + [xp.cos(angle / 2.0)]
+    components[axis] = xp.sin(angle / 2.0)
+    return xp.stack(components, axis=-1)
 
 
 def _get_angles(
@@ -1081,25 +1083,17 @@ def _get_angles(
     suppress_warnings: bool,
 ) -> Array:
     xp = array_namespace(a)
-    device = xp_device(a)
     eps = 1e-7
     half_sum = xp.atan2(b, a)
     half_diff = xp.atan2(d, c)
-    # We zero-initialize to automatically cover singular cases where the second angle is
-    # not defined uniquely.
-    angles = xp.zeros((*a.shape, 3), dtype=a.dtype, device=device)
-
-    angles = xpx.at(angles)[..., 1].set(2 * xp.atan2(xp.hypot(c, d), xp.hypot(a, b)))
-
-    angle_first = 0 if extrinsic else 2
-    angle_third = 2 if extrinsic else 0
+    second = 2 * xp.atan2(xp.hypot(c, d), xp.hypot(a, b))
 
     # Check if the second angle is close to 0 or pi, causing a singularity.
     # - Case 0: Second angle is neither close to 0 nor pi.
     # - Case 1: Second angle is close to 0.
     # - Case 2: Second angle is close to pi.
-    case1 = xp.abs(angles[..., 1]) <= eps
-    case2 = xp.abs(angles[..., 1] - xp.pi) <= eps
+    case1 = xp.abs(second) <= eps
+    case2 = xp.abs(second - xp.pi) <= eps
     case0 = ~(case1 | case2)
     if not suppress_warnings and not is_lazy_array(case0) and xp.any(~case0):
         warnings.warn(
@@ -1109,26 +1103,18 @@ def _get_angles(
             stacklevel=3,
         )
 
-    # This writes case1 into a0 where True and case2 everywhere else. This is sound
-    # because we later overwrite any values without singularity with the regular value
-    # of case0. The second angle is covered by default since we zero-initialized the
-    # second dimension.
-    a0 = xp.where(case1, 2 * half_sum, 2 * half_diff * (-1 if extrinsic else 1))
-    angles = xpx.at(angles)[..., 0].set(a0)
-
-    # We overwrite the values of angles without singularities (case0)
-    a1 = xp.where(case0, half_sum - half_diff, angles[..., angle_first])
-    angles = xpx.at(angles)[..., angle_first].set(a1)
-
-    # Same as above but for the third angle. We overwrite the non-singular case0 values
-    a3 = xp.where(case0, half_sum + half_diff, angles[..., angle_third])
+    # In the singular cases only the sum or the difference of the outer angles is
+    # defined. We put it in the first angle of the sequence and leave the other at zero.
+    singular = xp.where(case1, 2 * half_sum, 2 * half_diff * (-1 if extrinsic else 1))
+    first = xp.where(case0, half_sum - half_diff, singular if extrinsic else 0.0)
+    third = xp.where(case0, half_sum + half_diff, 0.0 if extrinsic else singular)
     if not symmetric:
-        a3 = a3 * sign
-        angles = xpx.at(angles)[..., 1].set(angles[..., 1] - lamb)
-    angles = xpx.at(angles)[..., angle_third].set(a3)
+        third = third * sign
+        second = second - lamb
 
-    angles = (angles + xp.pi) % (2 * xp.pi) - xp.pi
-    return angles
+    order = [first, second, third] if extrinsic else [third, second, first]
+    angles = xp.stack(order, axis=-1)
+    return (angles + xp.pi) % (2 * xp.pi) - xp.pi
 
 
 def compose_quat(p: Array, q: Array) -> Array:
