@@ -39,9 +39,10 @@ from functools import partial
 
 import numpy as np
 
-from scipy._lib._array_api import (_asarray, array_namespace, is_lazy_array,
-                                   is_numpy, xp_promote, xp_capabilities)
-from scipy._lib._util import _asarray_validated, _transition_to_rng
+from scipy._lib._array_api import (_asarray, array_namespace, is_array_api_obj,
+                                   is_lazy_array, is_numpy, is_numpy_array, np_compat,
+                                   xp_promote, xp_capabilities)
+from scipy._lib._util import _asarray_validated, _transition_to_rng, broadcastable
 from scipy._external import array_api_extra as xpx
 from scipy.special import rel_entr
 from . import _hausdorff, _distance_pybind, _distance_wrap
@@ -675,13 +676,14 @@ def cosine(u, v, w=None):
     return correlation(u, v, w=w, centered=False)
 
 
+@xp_capabilities()
 def hamming(u, v, w=None):
     """
-    Compute the Hamming distance between two 1-D arrays.
+    Compute the Hamming distance between two arrays.
 
-    The Hamming distance between 1-D arrays `u` and `v`, is simply the
-    proportion of disagreeing components in `u` and `v`. If `u` and `v` are
-    boolean vectors, the Hamming distance is
+    The Hamming distance between arrays `u` and `v` is the proportion of disagreeing
+    components in `u` and `v` along the last axis. If `u` and `v` are boolean vectors,
+    the Hamming distance is
 
     .. math::
 
@@ -693,17 +695,17 @@ def hamming(u, v, w=None):
 
     Parameters
     ----------
-    u : (N,) array_like
+    u : (..., N) array_like
         Input array.
-    v : (N,) array_like
+    v : (..., N) array_like
         Input array.
-    w : (N,) array_like, optional
+    w : (..., N) array_like, optional
         The weights for each value in `u` and `v`. Default is None,
         which gives each value a weight of 1.0
 
     Returns
     -------
-    hamming : double
+    hamming : float or array
         The Hamming distance between vectors `u` and `v`.
 
     Examples
@@ -719,18 +721,20 @@ def hamming(u, v, w=None):
     0.33333333333333331
 
     """
-    u = _validate_vector(u)
-    v = _validate_vector(v)
-    if u.shape != v.shape:
-        raise ValueError('The 1d arrays must have equal lengths.')
-    u_ne_v = u != v
-    if w is not None:
-        w = _validate_weights(w)
-        if w.shape != u.shape:
-            raise ValueError("'w' should have the same length as 'u' and 'v'.")
-        w = w / w.sum()
-        return np.dot(u_ne_v, w)
-    return np.mean(u_ne_v)
+    try:
+        xp = array_namespace(u, v, w)
+    except TypeError as e: # String and object arrays are NumPy only
+        if any(is_array_api_obj(x) and not is_numpy_array(x) for x in (u, v, w)):
+            raise e  # The rest must also be numpy arrays
+        xp = np_compat
+    u, v = _asarray(u, xp=xp), _asarray(v, xp=xp)
+    if not broadcastable(u.shape, v.shape):
+        raise ValueError("Array shapes are incompatible for broadcasting.")
+    u_ne_v, w = _promote(u != v, w, xp=xp)
+    if w is None:
+        return xp.mean(u_ne_v, axis=-1)
+    w = _validate_weights(w, xp=xp)
+    return xp.vecdot(u_ne_v, w / xp.sum(w, axis=-1, keepdims=True))
 
 
 def jaccard(u, v, w=None):

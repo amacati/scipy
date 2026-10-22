@@ -278,14 +278,7 @@ def xp_assert_ones_weight(fn, *arrays, rest = (), axis = 0, **kwargs):
     xp_assert_close(fn(*arrays, *rest, w=w, **kwargs), fn(*arrays, *rest, **kwargs))
 
 
-# TODO: drop once we use the function in the file and it no longer throws a lint error
-def xp_assert_scaling_weight(  # skip name check
-    fn,
-    *arrays,
-    rest = (),
-    axis = 0,
-    **kwargs
-):
+def xp_assert_scaling_weight(fn, *arrays, rest = (), axis = 0, **kwargs):
     """Test invariance to weight scaling."""
     xp = array_namespace(*arrays)
     w = xp.ones(arrays[0].shape[axis], device=xp_device(arrays[0]))
@@ -462,7 +455,6 @@ wpdist = _weight_checked(pdist, default_axis=1, squeeze=False, n_args=1)
 wpdist_no_const = _weight_checked(pdist, default_axis=1, squeeze=False,
                                   const_test=False, n_args=1)
 wrogerstanimoto = _weight_checked(rogerstanimoto)
-wmatching = whamming = _weight_checked(hamming, dud_test=False)
 wyule = _weight_checked(yule)
 wdice = _weight_checked(dice)
 wcityblock = _weight_checked(cityblock)
@@ -1269,19 +1261,19 @@ class TestPdist:
 
     def test_pdist_matching_mtica1(self):
         # Test matching(*,*) with mtica example #1 (nums).
-        m = wmatching(np.array([1, 0, 1, 1, 0]),
-                      np.array([1, 1, 0, 1, 1]))
-        m2 = wmatching(np.array([1, 0, 1, 1, 0], dtype=bool),
-                       np.array([1, 1, 0, 1, 1], dtype=bool))
+        m = hamming(np.array([1, 0, 1, 1, 0]),
+                    np.array([1, 1, 0, 1, 1]))
+        m2 = hamming(np.array([1, 0, 1, 1, 0], dtype=bool),
+                     np.array([1, 1, 0, 1, 1], dtype=bool))
         xp_assert_close(m, 0.6, rtol=0, atol=1e-10, check_0d=False)
         xp_assert_close(m2, 0.6, rtol=0, atol=1e-10, check_0d=False)
 
     def test_pdist_matching_mtica2(self):
         # Test matching(*,*) with mtica example #2.
-        m = wmatching(np.array([1, 0, 1]),
-                     np.array([1, 1, 0]))
-        m2 = wmatching(np.array([1, 0, 1], dtype=bool),
-                      np.array([1, 1, 0], dtype=bool))
+        m = hamming(np.array([1, 0, 1]),
+                    np.array([1, 1, 0]))
+        m2 = hamming(np.array([1, 0, 1], dtype=bool),
+                     np.array([1, 1, 0], dtype=bool))
         xp_assert_close(m, 2 / 3, rtol=0, atol=1e-10, check_0d=False)
         xp_assert_close(m2, 2 / 3, rtol=0, atol=1e-10, check_0d=False)
 
@@ -1551,6 +1543,90 @@ class TestEuclidean:
         xp_assert_duplication_weight(euclidean, x, y)
         xp_assert_split_weight(euclidean, x, y)
         # euclidean is not invariant to rescaling of weights
+
+
+@make_xp_test_case(hamming)
+class TestHamming:
+    def test_hamming(self, xp):
+        x = xp.asarray([1.0, 0.0, 1.0, 1.0, 0.0])
+        y = xp.asarray([1.0, 1.0, 0.0, 1.0, 1.0])
+        xp_assert_close(hamming(x, y), xp.asarray(0.6))
+
+    def test_hamming_array_like(self):
+        x, y = [1.0, 0.0, 1.0, 1.0, 0.0], [1.0, 1.0, 0.0, 1.0, 1.0]
+        xp_assert_close(hamming(x, y), np.asarray(0.6))
+
+    @pytest.mark.parametrize("kind", ["real floating", "integral"])
+    def test_weight_invariance(self, xp, kind):
+        rng = np.random.default_rng(42)
+        dtype = xpx.default_dtype(xp, kind)
+        # Draw from few values so that u and v agree on some elements
+        x = xp.asarray(rng.integers(3, size=100), dtype=dtype)
+        y = xp.asarray(rng.integers(3, size=100), dtype=dtype)
+        xp_assert_ones_weight(hamming, x, y)
+        xp_assert_scaling_weight(hamming, x, y)
+        xp_assert_zero_weight(hamming, x, y)
+        xp_assert_duplication_weight(hamming, x, y)
+        xp_assert_split_weight(hamming, x, y)
+
+    def test_hamming_unequal_length(self, xp):
+        # Regression test for gh-4290.
+        u, v = xp.asarray([0, 0, 1]), xp.asarray([1, 0, 1, 0])
+        with pytest.raises(ValueError, match="Array shapes are incompatible"):
+            hamming(u, v)
+
+    def test_hamming_unequal_length_with_w(self, xp):
+        u, v = xp.asarray([0, 0, 1]), xp.asarray([1, 0, 1, 0])
+        w = xp.asarray([1.0, 0.0, 1.0, 0.0])
+        with pytest.raises(ValueError, match="Array shapes are incompatible"):
+            hamming(u, v, w)
+
+    @pytest.mark.skip_xp_backends("array_api_strict",
+                                  reason="mixed-kind promotion is undefined")
+    @pytest.mark.parametrize("u, u_dtype, v, v_dtype, expected", [
+        ([1, 2, 3], "int64", [1.0, 2.0, 3.0], "float64", 0.0),
+        ([True, False], "bool", [1, 0], "int64", 0.0),
+    ])
+    def test_hamming_mixed_kinds(self, xp, u, u_dtype, v, v_dtype, expected):
+        u = xp.asarray(u, dtype=getattr(xp, u_dtype))
+        v = xp.asarray(v, dtype=getattr(xp, v_dtype))
+        xp_assert_close(hamming(u, v), xp.asarray(expected))
+
+    def test_hamming_string_array(self):
+        # Strings are NumPy only
+        # https://github.com/scikit-learn/scikit-learn/issues/4014
+        a = np.array(['eggs', 'spam', 'spam', 'eggs', 'spam', 'spam', 'spam',
+                      'spam', 'spam', 'spam', 'spam', 'eggs', 'eggs', 'spam',
+                      'eggs', 'eggs', 'eggs', 'eggs', 'eggs', 'spam'],
+                     dtype='|S4')
+        b = np.array(['eggs', 'spam', 'spam', 'eggs', 'eggs', 'spam', 'spam',
+                      'spam', 'spam', 'eggs', 'spam', 'eggs', 'spam', 'eggs',
+                      'spam', 'spam', 'eggs', 'spam', 'spam', 'eggs'],
+                     dtype='|S4')
+        xp_assert_close(hamming(a, b), np.asarray(0.45))
+
+    def test_hamming_string_list(self):
+        u, v = ['eggs', 'spam', 'spam'], ['eggs', 'eggs', 'spam']
+        xp_assert_close(hamming(u, v), np.asarray(1 / 3))
+        xp_assert_close(hamming(u, v, w=[1.0, 2.0, 1.0]), np.asarray(0.5))
+
+    def test_hamming_string_batched(self):
+        u = np.array([['eggs', 'spam', 'spam'], ['eggs', 'spam', 'eggs']])
+        v = np.array(['eggs', 'eggs', 'spam'])
+        xp_assert_close(hamming(u, v), np.asarray([1 / 3, 2 / 3]))
+        xp_assert_close(hamming(u, v, w=[1.0, 2.0, 1.0]), np.asarray([0.5, 0.75]))
+
+    @pytest.mark.parametrize("u, v", [
+        (['eggs', 'spam'], [b'eggs', b'spam']),
+        (np.array(['eggs', 'spam']), np.array([b'eggs', b'spam'])),
+    ])
+    def test_hamming_str_bytes(self, u, v):
+        xp_assert_close(hamming(u, v), np.asarray(1.0))  # str and bytes are not equal
+
+    @pytest.mark.skip_xp_backends("numpy", reason="NumPy arrays accept lists")
+    def test_hamming_foreign_array_with_numpy_input(self, xp):
+        with pytest.raises(TypeError):  # Other frameworks throw on string inputs
+            hamming(xp.asarray([1, 2]), ["eggs", "spam"])
 
 
 class TestSomeDistanceFunctions:
@@ -1990,38 +2066,6 @@ def test_euclideans():
     assert math.isclose(d1**2, d2, abs_tol=1e-14)
 
 
-def test_hamming_unequal_length():
-    # Regression test for gh-4290.
-    x = [0, 0, 1]
-    y = [1, 0, 1, 0]
-    # Used to give an AttributeError from ndarray.mean called on bool
-    with pytest.raises(ValueError):
-        whamming(x, y)
-
-
-def test_hamming_unequal_length_with_w():
-    u = [0, 0, 1]
-    v = [0, 0, 1]
-    w = [1, 0, 1, 0]
-    msg = "'w' should have the same length as 'u' and 'v'."
-    with pytest.raises(ValueError, match=msg):
-        whamming(u, v, w)
-
-
-def test_hamming_string_array():
-    # https://github.com/scikit-learn/scikit-learn/issues/4014
-    a = np.array(['eggs', 'spam', 'spam', 'eggs', 'spam', 'spam', 'spam',
-                  'spam', 'spam', 'spam', 'spam', 'eggs', 'eggs', 'spam',
-                  'eggs', 'eggs', 'eggs', 'eggs', 'eggs', 'spam'],
-                  dtype='|S4')
-    b = np.array(['eggs', 'spam', 'spam', 'eggs', 'eggs', 'spam', 'spam',
-                  'spam', 'spam', 'eggs', 'spam', 'eggs', 'spam', 'eggs',
-                  'spam', 'spam', 'eggs', 'spam', 'spam', 'eggs'],
-                  dtype='|S4')
-    desired = 0.45
-    xp_assert_close(whamming(a, b), desired, check_0d=False)
-
-
 def test_minkowski_w():
     # Regression test for gh-8142.
     arr_in = np.array([[83.33333333, 100., 83.33333333, 100., 36.,
@@ -2405,6 +2449,7 @@ class TestChebyshev:
         make_xp_pytest_param(minkowski, 3.5),
         make_xp_pytest_param(minkowski, np.inf),
         make_xp_pytest_param(euclidean, None),
+        make_xp_pytest_param(hamming, None),
         (dice, None),
         (rogerstanimoto, None),
         (sqeuclidean, None),
