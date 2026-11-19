@@ -463,7 +463,6 @@ wpdist = _weight_checked(pdist, default_axis=1, squeeze=False, n_args=1)
 wpdist_no_const = _weight_checked(pdist, default_axis=1, squeeze=False,
                                   const_test=False, n_args=1)
 wrogerstanimoto = _weight_checked(rogerstanimoto)
-wyule = _weight_checked(yule)
 wdice = _weight_checked(dice)
 wcityblock = _weight_checked(cityblock)
 wbraycurtis = _weight_checked(braycurtis)
@@ -2345,40 +2344,52 @@ class TestJensenShannon:
             jensenshannon(p, q)
 
 
+@make_xp_test_case(yule)
 class TestYule:
-    def test_pdist_yule_mtica1(self):
-        m = wyule(np.array([1, 0, 1, 1, 0]),
-                  np.array([1, 1, 0, 1, 1]))
-        m2 = wyule(np.array([1, 0, 1, 1, 0], dtype=bool),
-                   np.array([1, 1, 0, 1, 1], dtype=bool))
-        xp_assert_close(m, 2.0, rtol=0, atol=1e-10)
-        xp_assert_close(m2, 2.0, rtol=0, atol=1e-10)
+    @pytest.mark.parametrize("dtype", ["float32", "float64", "int32", "int64", "bool"])
+    @pytest.mark.parametrize("x, y, expected", [
+        ([1, 0, 1, 1, 0], [1, 1, 0, 1, 1], 2.0),  # mtica example 1
+        ([1, 0, 1], [1, 1, 0], 2.0),  # mtica example 2
+    ])
+    def test_yule(self, xp, x, y, expected, dtype):
+        dtype = getattr(xp, dtype)
+        x = xp.asarray(x, dtype=dtype)
+        y = xp.asarray(y, dtype=dtype)
+        xp_assert_close(yule(x, y), xp.asarray(expected))
 
-    def test_pdist_yule_mtica2(self):
-        m = wyule(np.array([1, 0, 1]),
-                  np.array([1, 1, 0]))
-        m2 = wyule(np.array([1, 0, 1], dtype=bool),
-                   np.array([1, 1, 0], dtype=bool))
-        xp_assert_close(m, 2.0, rtol=0, atol=1e-10)
-        xp_assert_close(m2, 2.0, rtol=0, atol=1e-10)
+    @pytest.mark.parametrize("x, y, expected", [
+        ([1, 0, 1, 1, 0], [1, 1, 0, 1, 1], 2.0),  # mtica example 1
+        ([1, 0, 1], [1, 1, 0], 2.0),  # mtica example 2
+    ])
+    def test_yule_array_like(self, x, y, expected):
+        xp_assert_close(yule(x, y), np.asarray(expected))
 
-    def test_yule_all_same(self):
+    @pytest.mark.parametrize("dtype", ["float32", "float64", "int32", "int64", "bool"])
+    def test_weight_invariance(self, xp, dtype):
+        rng = np.random.default_rng(42)
+        x = xp.asarray(rng.integers(2, size=100).astype(dtype))
+        y = xp.asarray(rng.integers(2, size=100).astype(dtype))
+        xp_assert_ones_weight(yule, x, y)
+        xp_assert_scaling_weight(yule, x, y)
+        xp_assert_zero_weight(yule, x, y)
+        xp_assert_duplication_weight(yule, x, y)
+        xp_assert_split_weight(yule, x, y)
+
+    def test_yule_all_same(self, xp):
         # Test yule avoids a divide by zero when exactly equal
+        x = xp.ones(6, dtype=xp.bool)
+        xp_assert_equal(yule(x, x), xp.asarray(0.0))
+
+    def test_yule_all_same_Xdist(self):
         x = np.ones((2, 6), dtype=bool)
-        d = wyule(x[0], x[0])
-        assert d == 0.0
+        xp_assert_equal(pdist(x, 'yule'), [0.0])
+        xp_assert_equal(cdist(x[:1], x[:1], 'yule'), [[0.0]])
 
-        d = pdist(x, 'yule')
-        xp_assert_equal(d, [0.0])
-
-        d = cdist(x[:1], x[:1], 'yule')
-        xp_assert_equal(d, [[0.0]])
-
-    def test_batch_zero_guard(self):
+    def test_batch_zero_guard(self, xp):
         # zero-guard for one batch element must not affect the others
-        u = np.array([[1, 1, 0, 0], [1, 0, 1, 0]], dtype=bool)
-        v = np.array([[1, 1, 0, 0], [0, 1, 0, 1]], dtype=bool)
-        xp_assert_equal(yule(u, v), np.asarray([0.0, 2.0]))
+        u = xp.asarray([[1, 1, 0, 0], [1, 0, 1, 0]], dtype=xp.bool)
+        v = xp.asarray([[1, 1, 0, 0], [0, 1, 0, 1]], dtype=xp.bool)
+        xp_assert_equal(yule(u, v), xp.asarray([0.0, 2.0]))
 
 
 def test_gh_17703():
@@ -2685,7 +2696,7 @@ class TestChebyshev:
         make_xp_pytest_param(canberra, None),
         # jensenshannon takes no w vector. Tested in TestJensenShannon
         (braycurtis, None),
-        (yule, None),
+        make_xp_pytest_param(yule, None),
         (dice, None),
         (rogerstanimoto, None),
         (russellrao, None),

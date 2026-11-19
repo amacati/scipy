@@ -121,27 +121,28 @@ def _convert_to_type(X, out_type):
     return np.ascontiguousarray(X, dtype=out_type)
 
 
-def _nbool_correspond_all(u, v, w=None):
-    if u.dtype == v.dtype == bool and w is None:
+def _nbool_correspond_all(u, v, w=None, xp=None):
+    if xp is None:
+        xp = array_namespace(u, v, w)
+    # u and v must be boolean. TODO: Remove when converting rogerstanimoto
+    u, v = xp.asarray(u, dtype=xp.bool), xp.asarray(v, dtype=xp.bool)
+    if w is None:
         not_u = ~u
         not_v = ~v
-        nff = (not_u & not_v).sum(axis=-1)
-        nft = (not_u & v).sum(axis=-1)
-        ntf = (u & not_v).sum(axis=-1)
-        ntt = (u & v).sum(axis=-1)
-    else:
-        dtype = np.result_type(int, u.dtype, v.dtype)
-        u = u.astype(dtype)
-        v = v.astype(dtype)
-        not_u = 1.0 - u
-        not_v = 1.0 - v
-        if w is not None:
-            not_u = w * not_u
-            u = w * u
-        nff = (not_u * not_v).sum(axis=-1)
-        nft = (not_u * v).sum(axis=-1)
-        ntf = (u * not_v).sum(axis=-1)
-        ntt = (u * v).sum(axis=-1)
+        nff = xp.count_nonzero(not_u & not_v, axis=-1)
+        nft = xp.count_nonzero(not_u & v, axis=-1)
+        ntf = xp.count_nonzero(u & not_v, axis=-1)
+        ntt = xp.count_nonzero(u & v, axis=-1)
+        return (nff, nft, ntf, ntt)
+    u = xp.astype(u, w.dtype)
+    v = xp.astype(v, w.dtype)
+    not_u = w * (1 - u)
+    not_v = 1 - v
+    u = w * u
+    nff = xp.sum(not_u * not_v, axis=-1)
+    nft = xp.sum(not_u * v, axis=-1)
+    ntf = xp.sum(u * not_v, axis=-1)
+    ntt = xp.sum(u * v, axis=-1)
     return (nff, nft, ntf, ntt)
 
 
@@ -1280,6 +1281,7 @@ def jensenshannon(p, q, base=None, *, axis=_NoValue, keepdims=False):
     return xp.sqrt(js / 2.0)
 
 
+@xp_capabilities()
 def yule(u, v, w=None):
     """
     Compute the Yule dissimilarity between two boolean vectors.
@@ -1306,7 +1308,7 @@ def yule(u, v, w=None):
 
     Returns
     -------
-    yule : double
+    yule : float or array
         The Yule dissimilarity between vectors `u` and `v`.
 
     Examples
@@ -1318,13 +1320,21 @@ def yule(u, v, w=None):
     0.0
 
     """
-    u, v, w = xp_promote(u, v, w, broadcast=True, xp=np)
+    xp = array_namespace(u, v, w)
+    u, v = xp.asarray(u, dtype=xp.bool), xp.asarray(v, dtype=xp.bool)
+    if not broadcastable(u.shape, v.shape):
+        raise ValueError("Array shapes are incompatible for broadcasting.")
     if w is not None:
-        w = _validate_weights(w)
-    (nff, nft, ntf, ntt) = _nbool_correspond_all(u, v, w=w)
+        w = xp_promote(w, force_floating=True, xp=xp)
+        if not broadcastable(w.shape, u.shape, v.shape):
+            raise ValueError("Array shapes are incompatible for broadcasting.")
+        w = _validate_weights(w, xp=xp)
+    (nff, nft, ntf, ntt) = _nbool_correspond_all(u, v, w=w, xp=xp)
     half_R = ntf * nft
-    with np.errstate(divide='ignore', invalid='ignore'):
-        res = np.where(half_R == 0, 0.0, 2.0 * half_R / (ntt * nff + half_R))
+    denom = ntt * nff + half_R
+    dtype = xpx.default_dtype(xp, "real floating")
+    half_R, denom = xp.astype(half_R, dtype), xp.astype(denom, dtype)
+    res = xp.where(half_R == 0, 0.0, 2.0 * half_R / xp.where(half_R == 0, 1, denom))
     return res if res.ndim > 0 else res[()]
 
 
@@ -1431,7 +1441,7 @@ def rogerstanimoto(u, v, w=None):
     >>> distance.rogerstanimoto([1, 0, 0], [1, 1, 0])
     0.5
     >>> distance.rogerstanimoto([1, 0, 0], [2, 0, 0])
-    -1.0
+    0.0
 
     """
     u, v, w = xp_promote(u, v, w, broadcast=True, xp=np)
