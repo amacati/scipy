@@ -145,23 +145,26 @@ def _nbool_correspond_all(u, v, w=None):
     return (nff, nft, ntf, ntt)
 
 
-def _nbool_correspond_ft_tf(u, v, w=None):
-    if u.dtype == v.dtype == bool and w is None:
+def _nbool_correspond_ft_tf(u, v, w=None, xp=None):
+    if xp is None:
+        xp = array_namespace(u, v, w)
+    if w is None and u.dtype == v.dtype == xp.bool:
         not_u = ~u
         not_v = ~v
-        nft = (not_u & v).sum(axis=-1)
-        ntf = (u & not_v).sum(axis=-1)
-    else:
-        dtype = np.result_type(int, u.dtype, v.dtype)
-        u = u.astype(dtype)
-        v = v.astype(dtype)
-        not_u = 1.0 - u
-        not_v = 1.0 - v
-        if w is not None:
-            not_u = w * not_u
-            u = w * u
-        nft = (not_u * v).sum(axis=-1)
-        ntf = (u * not_v).sum(axis=-1)
+        nft = xp.count_nonzero(not_u & v, axis=-1)
+        ntf = xp.count_nonzero(u & not_v, axis=-1)
+        return (nft, ntf)
+    # TODO: drop the non-bool unweighted case once all callers pass bool arrays
+    dtype = xp.result_type(u.dtype, v.dtype) if w is None else w.dtype
+    u = xp.astype(u, dtype)
+    v = xp.astype(v, dtype)
+    not_u = 1.0 - u
+    not_v = 1.0 - v
+    if w is not None:
+        not_u = w * not_u
+        u = w * u
+    nft = xp.sum(not_u * v, axis=-1)
+    ntf = xp.sum(u * not_v, axis=-1)
     return (nft, ntf)
 
 
@@ -1328,6 +1331,7 @@ def yule(u, v, w=None):
     return res if res.ndim > 0 else res[()]
 
 
+@xp_capabilities()
 def dice(u, v, w=None):
     """
     Compute the Dice dissimilarity between boolean vectors.
@@ -1355,7 +1359,7 @@ def dice(u, v, w=None):
 
     Returns
     -------
-    dice : double
+    dice : float or array
         The Dice dissimilarity between 1-D arrays `u` and `v`.
 
     Notes
@@ -1372,24 +1376,26 @@ def dice(u, v, w=None):
     >>> distance.dice([1, 0, 0], [1, 1, 0])
     0.3333333333333333
     >>> distance.dice([1, 0, 0], [2, 0, 0])
-    -0.3333333333333333
+    0.0
 
     """
-    u, v, w = xp_promote(u, v, w, broadcast=True, xp=np)
+    xp = array_namespace(u, v, w)
+    u, v = xp.asarray(u, dtype=xp.bool), xp.asarray(v, dtype=xp.bool)
+    if not broadcastable(u.shape, v.shape):
+        raise ValueError("Array shapes are incompatible for broadcasting.")
     if w is not None:
-        w = _validate_weights(w)
-    if u.dtype == v.dtype == bool and w is None:
-        ntt = (u & v).sum(axis=-1)
+        w = xp_promote(w, force_floating=True, xp=xp)
+        if not broadcastable(w.shape, u.shape, v.shape):
+            raise ValueError("Array shapes are incompatible for broadcasting.")
+        w = _validate_weights(w, xp=xp)
+    if w is None:
+        ntt = xp.count_nonzero(u & v, axis=-1)
     else:
-        dtype = np.result_type(int, u.dtype, v.dtype)
-        u = u.astype(dtype)
-        v = v.astype(dtype)
-        if w is None:
-            ntt = (u * v).sum(axis=-1)
-        else:
-            ntt = (u * v * w).sum(axis=-1)
-    (nft, ntf) = _nbool_correspond_ft_tf(u, v, w=w)
-    return (ntf + nft) / (2.0 * ntt + ntf + nft)
+        ntt = xp.sum(xp.astype(u & v, w.dtype) * w, axis=-1)
+    (nft, ntf) = _nbool_correspond_ft_tf(u, v, w=w, xp=xp)
+    dtype = xpx.default_dtype(xp, "real floating")
+    ntt, mismatch = xp.astype(ntt, dtype), xp.astype(ntf + nft, dtype)
+    return mismatch / (2 * ntt + mismatch)
 
 
 def rogerstanimoto(u, v, w=None):

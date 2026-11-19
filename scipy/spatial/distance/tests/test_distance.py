@@ -464,7 +464,6 @@ wpdist_no_const = _weight_checked(pdist, default_axis=1, squeeze=False,
                                   const_test=False, n_args=1)
 wrogerstanimoto = _weight_checked(rogerstanimoto)
 wyule = _weight_checked(yule)
-wdice = _weight_checked(dice)
 wcityblock = _weight_checked(cityblock)
 wbraycurtis = _weight_checked(braycurtis)
 wsokalsneath = _weight_checked(sokalsneath)
@@ -1448,22 +1447,45 @@ class TestMinkowski:
             minkowski(xp.asarray([1, 2]), xp.asarray([3, 4]), p, xp.asarray([1, 1]))
 
 
+@make_xp_test_case(dice)
 class TestDice:
-    def test_pdist_dice_mtica1(self):
-        m = wdice(np.array([1, 0, 1, 1, 0]),
-                  np.array([1, 1, 0, 1, 1]))
-        m2 = wdice(np.array([1, 0, 1, 1, 0], dtype=bool),
-                   np.array([1, 1, 0, 1, 1], dtype=bool))
-        xp_assert_close(m, 3 / 7, rtol=0, atol=1e-10)
-        xp_assert_close(m2, 3 / 7, rtol=0, atol=1e-10)
+    @pytest.mark.parametrize("dtype", ["float32", "float64", "int32", "int64", "bool"])
+    @pytest.mark.parametrize("x, y, expected", [
+        ([1, 0, 1, 1, 0], [1, 1, 0, 1, 1], 3 / 7),  # mtica example 1
+        ([1, 0, 1], [1, 1, 0], 0.5),  # mtica example 2
+    ])
+    def test_dice(self, xp, x, y, expected, dtype):
+        dtype = getattr(xp, dtype)
+        x = xp.asarray(x, dtype=dtype)
+        y = xp.asarray(y, dtype=dtype)
+        xp_assert_close(dice(x, y), xp.asarray(expected))
 
-    def test_pdist_dice_mtica2(self):
-        m = wdice(np.array([1, 0, 1]),
-                  np.array([1, 1, 0]))
-        m2 = wdice(np.array([1, 0, 1], dtype=bool),
-                   np.array([1, 1, 0], dtype=bool))
-        xp_assert_close(m, 0.5, rtol=0, atol=1e-10)
-        xp_assert_close(m2, 0.5, rtol=0, atol=1e-10)
+    @pytest.mark.parametrize("x, y, expected", [
+        ([1, 0, 1, 1, 0], [1, 1, 0, 1, 1], 3 / 7),  # mtica example 1
+        ([1, 0, 1], [1, 1, 0], 0.5),  # mtica example 2
+    ])
+    def test_dice_array_like(self, x, y, expected):
+        xp_assert_close(dice(x, y), np.asarray(expected))
+
+    @pytest.mark.parametrize("dtype", ["float32", "float64", "int32", "int64", "bool"])
+    def test_weight_invariance(self, xp, dtype):
+        rng = np.random.default_rng(42)
+        x = xp.asarray(rng.integers(2, size=100).astype(dtype))
+        y = xp.asarray(rng.integers(2, size=100).astype(dtype))
+        xp_assert_ones_weight(dice, x, y)
+        xp_assert_scaling_weight(dice, x, y)
+        xp_assert_zero_weight(dice, x, y)
+        xp_assert_duplication_weight(dice, x, y)
+        xp_assert_split_weight(dice, x, y)
+
+    def test_non_01_input(self, xp):
+        x, y = xp.asarray([-10, 2.5, 0]), xp.asarray([2, -5, 2])
+        xp_assert_close(dice(x, y), xp.asarray(0.2))
+
+    @pytest.mark.filterwarnings("ignore:invalid value")
+    def test_all_false(self, xp):
+        x = xp.zeros(3, dtype=xp.bool)
+        xp_assert_equal(dice(x, x), xp.asarray(xp.nan))
 
 
 class TestRogersTanimoto:
@@ -2686,7 +2708,7 @@ class TestChebyshev:
         # jensenshannon takes no w vector. Tested in TestJensenShannon
         (braycurtis, None),
         (yule, None),
-        (dice, None),
+        make_xp_pytest_param(dice, None),
         (rogerstanimoto, None),
         (russellrao, None),
         (sokalsneath, None),
